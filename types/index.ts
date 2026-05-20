@@ -54,8 +54,11 @@ export interface Destaque {
   ementa?: string;
   ementaDetalhada?: string;
   descricao?: string;
+  /** Pessoa que assinou/apresentou formalmente o destaque */
   autor?: string;
   partidoAutor?: string;
+  /** Partido, Federação ou Bloco Parlamentar em nome do qual o destaque foi apresentado */
+  apresentante?: string;
   urlInteiroTeor?: string;
 }
 
