@@ -404,20 +404,47 @@ async function buscarAutorPrincipal(idProposicao: number): Promise<{
   nome?: string;
   partido?: string;
 }> {
-  type Resp = {
+  type RespAutores = {
     dados: Array<{
+      uri?: string;
       nome?: string;
       siglaPartido?: string;
+      tipo?: string;
     }>;
   };
 
+  type RespDeputado = {
+    dados: {
+      ultimoStatus?: {
+        siglaPartido?: string;
+        nome?: string;
+      };
+    };
+  };
+
   try {
-    const resp = await fetchJson<Resp>(`${BASE_URL}/proposicoes/${idProposicao}/autores`);
+    const resp = await fetchJson<RespAutores>(
+      `${BASE_URL}/proposicoes/${idProposicao}/autores`
+    );
     const autor = resp.dados?.[0];
     if (!autor) return {};
+
+    // O partido raramente vem na lista de autores; quando o autor for deputado,
+    // consultamos o cadastro do parlamentar para pegar o partido atual.
+    let partido = limparTexto(autor.siglaPartido);
+
+    if (!partido && autor.uri) {
+      try {
+        const dep = await fetchJson<RespDeputado>(autor.uri);
+        partido = limparTexto(dep.dados?.ultimoStatus?.siglaPartido);
+      } catch {
+        // Mantém partido indefinido se a consulta ao deputado falhar.
+      }
+    }
+
     return {
       nome: limparTexto(autor.nome),
-      partido: limparTexto(autor.siglaPartido),
+      partido,
     };
   } catch {
     return {};
