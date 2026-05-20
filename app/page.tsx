@@ -18,6 +18,10 @@ import type {
   Proposicao,
 } from "@/types";
 
+function textoDestaque(d: Destaque): string {
+  return d.ementaDetalhada || d.ementa || d.descricao || "Sem descrição cadastrada.";
+}
+
 export default function HomePage() {
   const [pauta, setPauta] = useState<Proposicao[]>([]);
   const [carregandoPauta, setCarregandoPauta] = useState(true);
@@ -330,7 +334,7 @@ export default function HomePage() {
               )}
 
               {!carregandoDestaques && destaques.length > 0 && (
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1 -mr-1">
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1 -mr-1">
                   {destaques.map((d) => {
                     const ativo = destaqueSelecionado?.id === d.id;
                     return (
@@ -348,16 +352,23 @@ export default function HomePage() {
                             : "border-slate-200 bg-white hover:border-psdb-blue/40 hover:bg-slate-50"
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="font-bold text-psdb-darkblue text-sm">
-                            {d.identificador}
-                          </span>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div>
+                            <span className="font-bold text-psdb-darkblue text-sm">
+                              {d.identificador}
+                            </span>
+                            {d.autor && (
+                              <div className="text-[10px] text-slate-500 mt-0.5">
+                                Autor: {d.autor}{d.partidoAutor ? ` (${d.partidoAutor})` : ""}
+                              </div>
+                            )}
+                          </div>
                           {ativo && (
                             <span className="chip-blue text-[10px]">Selecionado</span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-700 leading-snug line-clamp-4">
-                          {d.ementa || d.descricao || "Sem descrição cadastrada."}
+                        <p className="text-xs text-slate-700 leading-snug line-clamp-5">
+                          {textoDestaque(d)}
                         </p>
                       </button>
                     );
