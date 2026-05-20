@@ -10,10 +10,6 @@ const BASE_URL =
 
 const TIMEOUT_MS = Number(process.env.CAMARA_API_TIMEOUT_MS || 15000);
 
-/**
- * Faz fetch com timeout e tratamento de erro padronizado.
- * Lança Error com mensagem amigável quando falha.
- */
 async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -26,7 +22,6 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
         Accept: "application/json",
         ...options.headers,
       },
-      // Cache de 5 minutos no edge (Vercel)
       next: { revalidate: 300 },
     });
 
@@ -36,8 +31,7 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
       );
     }
 
-    const json = (await res.json()) as T;
-    return json;
+    return (await res.json()) as T;
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.name === "AbortError") {
@@ -53,31 +47,37 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
   }
 }
 
-/**
- * Formata identificador da proposição.
- * Ex.: { siglaTipo: "PL", numero: 4822, ano: 2025 } -> "PL 4822/2025"
- */
+function numeroOpcional(valor: unknown): number | undefined {
+  if (typeof valor === "number" && Number.isFinite(valor)) return valor;
+  if (typeof valor === "string" && valor.trim()) {
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 export function formatarIdentificador(p: {
   siglaTipo: string;
-  numero?: number;
-  ano?: number;
+  numero?: number | string;
+  ano?: number | string;
 }): string {
-  const numeroAno =
-    typeof p.numero === "number" && typeof p.ano === "number"
-      ? ` ${p.numero}/${p.ano}`
-      : "";
+  const numero = numeroOpcional(p.numero);
+  const ano = numeroOpcional(p.ano);
+  const numeroAno = numero && ano ? ` ${numero}/${ano}` : "";
   return `${p.siglaTipo}${numeroAno}`.trim();
 }
 
-/**
- * Retorna a data de hoje no formato YYYY-MM-DD.
- */
 function hojeISO(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function limparTexto(texto?: string): string | undefined {
+  const limpo = texto?.replace(/\s+/g, " ").trim();
+  return limpo || undefined;
 }
 
 function normalizarTermoBusca(termo: string): {
@@ -107,6 +107,7 @@ function mapearProposicao(d: {
   numero: number;
   ano: number;
   ementa?: string;
+  ementaDetalhada?: string;
   descricaoTipo?: string;
   urlInteiroTeor?: string;
   statusProposicao?: Proposicao["statusProposicao"];
@@ -116,7 +117,8 @@ function mapearProposicao(d: {
     siglaTipo: d.siglaTipo,
     numero: d.numero,
     ano: d.ano,
-    ementa: d.ementa || "(Sem ementa cadastrada.)",
+    ementa: limparTexto(d.ementa) || "(Sem ementa cadastrada.)",
+    ementaDetalhada: limparTexto(d.ementaDetalhada),
     identificador: formatarIdentificador(d),
     descricaoTipo: d.descricaoTipo,
     urlInteiroTeor: d.urlInteiroTeor,
@@ -124,21 +126,10 @@ function mapearProposicao(d: {
   };
 }
 
-/**
- * Busca a pauta do Plenário do dia.
- *
- * Estratégia em duas etapas:
- * 1) Tenta buscar eventos do Plenário hoje via /eventos
- * 2) Para cada evento, pega as proposições pautadas via /eventos/{id}/pauta
- * 3) Se não houver evento hoje, tenta o evento mais recente do Plenário.
- */
 export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   const hoje = hojeISO();
-
-  // Id do órgão "Plenário" na API da Câmara = 180
   const PLENARIO_ID = 180;
 
-  // 1) Buscar eventos do plenário hoje
   const urlEventos = new URL(`${BASE_URL}/eventos`);
   urlEventos.searchParams.set("idOrgao", String(PLENARIO_ID));
   urlEventos.searchParams.set("dataInicio", hoje);
@@ -149,7 +140,6 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   type EventosResp = { dados: Array<{ id: number; descricao: string }> };
   let eventos = await fetchJson<EventosResp>(urlEventos.toString());
 
-  // Se não há eventos hoje, buscar últimos 7 dias e pegar o mais recente
   if (!eventos.dados || eventos.dados.length === 0) {
     const seteDias = new Date();
     seteDias.setDate(seteDias.getDate() - 7);
@@ -167,11 +157,8 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
     eventos = await fetchJson<EventosResp>(urlFallback.toString());
   }
 
-  if (!eventos.dados || eventos.dados.length === 0) {
-    return [];
-  }
+  if (!eventos.dados || eventos.dados.length === 0) return [];
 
-  // 2) Para cada evento, buscar pauta. Pegamos só os 2 mais recentes para não estourar.
   const eventosLimitados = eventos.dados.slice(0, 2);
 
   type PautaResp = {
@@ -192,19 +179,15 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
 
   for (const evento of eventosLimitados) {
     try {
-      const urlPauta = `${BASE_URL}/eventos/${evento.id}/pauta`;
-      const pauta = await fetchJson<PautaResp>(urlPauta);
+      const pauta = await fetchJson<PautaResp>(`${BASE_URL}/eventos/${evento.id}/pauta`);
 
       for (const item of pauta.dados || []) {
         const p = item.proposicao_;
         if (!p) continue;
-        // Evitar duplicatas
         if (todasProposicoes.some((x) => x.id === p.id)) continue;
-
         todasProposicoes.push(mapearProposicao(p));
       }
     } catch {
-      // se falhar para um evento, segue para o próximo
       continue;
     }
   }
@@ -212,10 +195,6 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   return todasProposicoes;
 }
 
-/**
- * Busca proposições na base geral da Câmara, não apenas na pauta do dia.
- * Aceita tanto formatos como "PL 1625/2026" quanto palavras-chave.
- */
 export async function buscarProposicoes(termo: string): Promise<Proposicao[]> {
   const busca = normalizarTermoBusca(termo);
   if (!busca.palavraChave || busca.palavraChave.length < 2) return [];
@@ -240,6 +219,7 @@ export async function buscarProposicoes(termo: string): Promise<Proposicao[]> {
       numero: number;
       ano: number;
       ementa?: string;
+      ementaDetalhada?: string;
       descricaoTipo?: string;
       urlInteiroTeor?: string;
     }>;
@@ -249,9 +229,6 @@ export async function buscarProposicoes(termo: string): Promise<Proposicao[]> {
   return (resp.dados || []).map(mapearProposicao);
 }
 
-/**
- * Busca detalhes completos de uma proposição.
- */
 export async function buscarProposicao(id: number): Promise<Proposicao> {
   const url = `${BASE_URL}/proposicoes/${id}`;
   type Resp = {
@@ -261,6 +238,7 @@ export async function buscarProposicao(id: number): Promise<Proposicao> {
       numero: number;
       ano: number;
       ementa: string;
+      ementaDetalhada?: string;
       descricaoTipo?: string;
       urlInteiroTeor?: string;
       statusProposicao?: Proposicao["statusProposicao"];
@@ -271,11 +249,87 @@ export async function buscarProposicao(id: number): Promise<Proposicao> {
   return mapearProposicao(resp.dados);
 }
 
-/**
- * Busca destaques relacionados a uma proposição.
- * Observação: a API da Câmara pode variar a disponibilidade dos DTQs.
- * Quando não houver retorno estruturado, o app mantém campo manual como fallback.
- */
+async function buscarAutorPrincipal(idProposicao: number): Promise<{
+  nome?: string;
+  partido?: string;
+}> {
+  type Resp = {
+    dados: Array<{
+      nome?: string;
+      siglaPartido?: string;
+      codPartido?: string;
+      uriPartido?: string;
+    }>;
+  };
+
+  try {
+    const resp = await fetchJson<Resp>(`${BASE_URL}/proposicoes/${idProposicao}/autores`);
+    const autor = resp.dados?.[0];
+    if (!autor) return {};
+    return {
+      nome: limparTexto(autor.nome),
+      partido: limparTexto(autor.siglaPartido),
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function detalharDestaque(base: {
+  id: number;
+  siglaTipo: string;
+  numero?: number | string;
+  ano?: number | string;
+  ementa?: string;
+  ementaDetalhada?: string;
+  descricaoTipo?: string;
+  urlInteiroTeor?: string;
+}): Promise<Destaque> {
+  type RespDetalhe = {
+    dados: {
+      id: number;
+      siglaTipo: string;
+      numero?: number;
+      ano?: number;
+      ementa?: string;
+      ementaDetalhada?: string;
+      descricaoTipo?: string;
+      urlInteiroTeor?: string;
+    };
+  };
+
+  let dados = base;
+
+  try {
+    const detalhe = await fetchJson<RespDetalhe>(`${BASE_URL}/proposicoes/${base.id}`);
+    dados = { ...base, ...detalhe.dados };
+  } catch {
+    // Mantém os dados resumidos da lista de relacionadas.
+  }
+
+  const autor = await buscarAutorPrincipal(base.id);
+  const numero = numeroOpcional(dados.numero);
+  const ano = numeroOpcional(dados.ano);
+
+  return {
+    id: dados.id,
+    siglaTipo: dados.siglaTipo,
+    numero,
+    ano,
+    identificador: formatarIdentificador({
+      siglaTipo: dados.siglaTipo,
+      numero,
+      ano,
+    }),
+    ementa: limparTexto(dados.ementa),
+    ementaDetalhada: limparTexto(dados.ementaDetalhada),
+    descricao: limparTexto(dados.ementaDetalhada || dados.ementa || dados.descricaoTipo),
+    autor: autor.nome,
+    partidoAutor: autor.partido,
+    urlInteiroTeor: dados.urlInteiroTeor,
+  };
+}
+
 export async function buscarDestaques(id: number): Promise<Destaque[]> {
   const url = `${BASE_URL}/proposicoes/${id}/relacionadas`;
 
@@ -283,41 +337,31 @@ export async function buscarDestaques(id: number): Promise<Destaque[]> {
     dados: Array<{
       id: number;
       siglaTipo: string;
-      numero?: number;
-      ano?: number;
+      numero?: number | string;
+      ano?: number | string;
       ementa?: string;
+      ementaDetalhada?: string;
       descricaoTipo?: string;
       urlInteiroTeor?: string;
-      uriAutores?: string;
     }>;
   };
 
   try {
     const resp = await fetchJson<Resp>(url);
-    const relacionadas = resp.dados || [];
-    const destaques = relacionadas.filter((p) =>
+    const destaques = (resp.dados || []).filter((p) =>
       String(p.siglaTipo || "").toUpperCase().startsWith("DTQ")
     );
 
-    return destaques.map((d) => ({
-      id: d.id,
-      siglaTipo: d.siglaTipo,
-      numero: d.numero,
-      ano: d.ano,
-      identificador: formatarIdentificador(d),
-      ementa: d.ementa,
-      descricao: d.descricaoTipo,
-      urlInteiroTeor: d.urlInteiroTeor,
-    }));
+    const detalhados = await Promise.all(
+      destaques.map((d) => detalharDestaque(d))
+    );
+
+    return detalhados.sort((a, b) => (a.numero || 0) - (b.numero || 0));
   } catch {
     return [];
   }
 }
 
-/**
- * Busca o último parecer do relator de uma proposição.
- * Retorna null se não houver parecer cadastrado.
- */
 export async function buscarUltimoParecer(
   id: number
 ): Promise<Parecer | null> {
@@ -337,7 +381,6 @@ export async function buscarUltimoParecer(
   try {
     const resp = await fetchJson<Resp>(url);
     if (!resp.dados || resp.dados.length === 0) return null;
-    // O mais recente costuma vir por último; vamos pegar o último.
     const ultimo = resp.dados[resp.dados.length - 1];
     return {
       idProposicaoRelatada: ultimo.idProposicaoRelatada,
