@@ -73,55 +73,47 @@ async function fetchText(url: string): Promise<string | undefined> {
 // =========================================================
 function mapearApresentantePolitico(partido?: string): string | undefined {
   if (!partido) return undefined;
-  const p = partido.trim().toUpperCase();
 
-  const BLOCO_UNIAO = "UNIÃO, PP, PSD, REPUBLICANOS, MDB, Federação PSDB CIDADANIA, PODE";
+  // Normaliza variações comuns para a sigla canônica
+  const aliases: Record<string, string> = {
+    "UNIAO": "UNIÃO",
+    "UB": "UNIÃO",
+    "PROGRESSISTAS": "PP",
+    "REP": "REPUBLICANOS",
+    "CID": "CIDADANIA",
+    "PODEMOS": "PODE",
+    "SD": "SOLIDARIEDADE",
+    "MISSAO": "MISSÃO",
+    "PC DO B": "PCDOB",
+  };
 
-  // Bloco majoritário (UNIÃO / PP / PSD / REPUBLICANOS / MDB / PSDB / CIDADANIA / PODE)
-  if (
-    p === "UNIÃO" || p === "UNIAO" || p === "UB" ||
-    p === "PP" || p === "PROGRESSISTAS" ||
-    p === "PSD" ||
-    p === "REPUBLICANOS" || p === "REP" ||
-    p === "MDB" ||
-    p === "PSDB" ||
-    p === "CIDADANIA" || p === "CID" ||
-    p === "PODE" || p === "PODEMOS"
-  ) {
-    return BLOCO_UNIAO;
-  }
+  const bruto = partido.trim().toUpperCase();
+  const p = aliases[bruto] || bruto;
+
+  const BLOCO_UNIAO =
+    "UNIÃO, PP, PSD, REPUBLICANOS, MDB, Federação PSDB CIDADANIA, PODE";
+
+  // Bloco majoritário
+  const partidosBlocoUniao = [
+    "UNIÃO", "PP", "PSD", "REPUBLICANOS", "MDB",
+    "PSDB", "CIDADANIA", "PODE",
+  ];
+  if (partidosBlocoUniao.includes(p)) return BLOCO_UNIAO;
 
   // Federação PT-PCdoB-PV
-  if (p === "PT" || p === "PCDOB" || p === "PC DO B" || p === "PV") {
-    return "Fdr PT-PCdoB-PV";
-  }
+  if (["PT", "PCDOB", "PV"].includes(p)) return "Fdr PT-PCdoB-PV";
 
   // Federação PSOL-REDE
-  if (p === "PSOL" || p === "REDE") {
-    return "Fdr PSOL-REDE";
-  }
+  if (["PSOL", "REDE"].includes(p)) return "Fdr PSOL-REDE";
 
   // Partidos solo (mantêm o próprio nome)
-  if (
-    p === "PL" ||
-    p === "PSB" ||
-    p === "PDT" ||
-    p === "SOLIDARIEDADE" || p === "SD" ||
-    p === "AVANTE" ||
-    p === "NOVO" ||
-    p === "MISSÃO" || p === "MISSAO"
-  ) {
-    return p === "MISSAO" ? "MISSÃO" :
-           p === "UNIAO" ? "UNIÃO" :
-           p === "SD" ? "SOLIDARIEDADE" :
-           p === "PODEMOS" ? "PODE" :
-           p === "PROGRESSISTAS" ? "PP" :
-           p === "REP" ? "REPUBLICANOS" :
-           p === "UB" ? "UNIÃO" :
-           p;
-  }
+  const partidosSolo = [
+    "PL", "PSB", "PDT", "SOLIDARIEDADE",
+    "AVANTE", "NOVO", "MISSÃO",
+  ];
+  if (partidosSolo.includes(p)) return p;
 
-  // Partido não mapeado: devolve o próprio sigla como fallback seguro
+  // Partido não mapeado: devolve a sigla normalizada como fallback
   return p;
 }
 
