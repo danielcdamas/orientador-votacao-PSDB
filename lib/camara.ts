@@ -8,6 +8,7 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_CAMARA_API_BASE ||
   "https://dadosabertos.camara.leg.br/api/v2";
 
+const PORTAL_URL = "https://www.camara.leg.br/proposicoesWeb";
 const TIMEOUT_MS = Number(process.env.CAMARA_API_TIMEOUT_MS || 15000);
 
 async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -54,7 +55,7 @@ async function fetchText(url: string): Promise<string | undefined> {
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { Accept: "text/html,text/plain,*/*" },
+      headers: { Accept: "text/html,text/plain,application/pdf,*/*" },
       next: { revalidate: 300 },
     });
     if (!res.ok) return undefined;
@@ -112,8 +113,10 @@ function extrairNumeroDtq(...textos: Array<string | undefined>): number | undefi
   const texto = textos.filter(Boolean).join(" ");
   const padroes = [
     /DTQ\s*(?:n\.?\s*)?(\d+)\s*=>/i,
-    /DTQ\s*(?:n\.?\s*)?(\d+)\b/i,
-    /Destaque\s*(?:n\.?\s*)?(\d+)\b/i,
+    /DTQ\s*n[ºo.]?\s*(\d+)\b/i,
+    /DTQ\s*(\d+)\b/i,
+    /Destaque\s*n[ºo.]?\s*(\d+)\b/i,
+    /Apresentaç[aã]o\s+do\s+DTQ\s*n\.?\s*(\d+)\b/i,
     /filename=DTQ\+?(\d+)/i,
     /filename=[^\s]*DTQ[^\d]*(\d+)/i,
   ];
@@ -124,6 +127,19 @@ function extrairNumeroDtq(...textos: Array<string | undefined>): number | undefi
   }
 
   return undefined;
+}
+
+function extrairUrlInteiroTeorDaFicha(html?: string): string | undefined {
+  if (!html) return undefined;
+  const match = html.match(/href=["']([^"']*prop_mostrarintegra\?[^"']+)["']/i);
+  if (!match?.[1]) return undefined;
+
+  try {
+    const href = match[1].replace(/&amp;/g, "&");
+    return new URL(href, "https://www.camara.leg.br").toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function extrairDescricaoDestaque(textoBruto?: string): string | undefined {
@@ -139,6 +155,27 @@ function extrairDescricaoDestaque(textoBruto?: string): string | undefined {
   for (const padrao of padroes) {
     const match = texto.match(padrao);
     if (match?.[1]) return limparTexto(match[1])?.replace(/\s+\.$/, ".");
+  }
+
+  return undefined;
+}
+
+function extrairApresentantePolitico(...textos: Array<string | undefined>): string | undefined {
+  const texto = limparTexto(textos.filter(Boolean).join(" "));
+  if (!texto) return undefined;
+
+  const padroes = [
+    /(?:L[ií]der|Vice-L[ií]der)\s+do\s+Bloco\s+Parlamentar\s+([^.;\n]+?)(?:\s+apresenta|\s+requer|\.|;|$)/i,
+    /(?:L[ií]der|Vice-L[ií]der)\s+da\s+Federaç[aã]o\s+([^.;\n]+?)(?:\s+apresenta|\s+requer|\.|;|$)/i,
+    /(?:L[ií]der|Vice-L[ií]der)\s+do\s+Partido\s+([^.;\n]+?)(?:\s+apresenta|\s+requer|\.|;|$)/i,
+    /pela\s+Federaç[aã]o\s+([^.;\n]+?)(?:\s+apresenta|\s+requer|\.|;|$)/i,
+    /pelo\s+Bloco\s+Parlamentar\s+([^.;\n]+?)(?:\s+apresenta|\s+requer|\.|;|$)/i,
+    /pelo\s+Partido\s+([^.;\n]+?)(?:\s+apresenta|\s+requer|\.|;|$)/i,
+  ];
+
+  for (const padrao of padroes) {
+    const match = texto.match(padrao);
+    if (match?.[1]) return limparTexto(match[1]);
   }
 
   return undefined;
@@ -337,16 +374,19 @@ async function buscarAutorPrincipal(idProposicao: number): Promise<{
   }
 }
 
-async function detalharDestaque(base: {
-  id: number;
-  siglaTipo: string;
-  numero?: number | string;
-  ano?: number | string;
-  ementa?: string;
-  ementaDetalhada?: string;
-  descricaoTipo?: string;
-  urlInteiroTeor?: string;
-}): Promise<Destaque> {
+async function detalharDestaque(
+  base: {
+    id: number;
+    siglaTipo: string;
+    numero?: number | string;
+    ano?: number | string;
+    ementa?: string;
+    ementaDetalhada?: string;
+    descricaoTipo?: string;
+    urlInteiroTeor?: string;
+  },
+  numeroFallback: number
+): Promise<Destaque> {
   type RespDetalhe = {
     dados: {
       id: number;
@@ -369,9 +409,9 @@ async function detalharDestaque(base: {
     // Mantém os dados resumidos da lista de relacionadas.
   }
 
-  const textoInteiroTeor = dados.urlInteiroTeor
-    ? await fetchText(dados.urlInteiroTeor)
-    : undefined;
+  const fichaHtml = await fetchText(`${PORTAL_URL}/fichadetramitacao?idProposicao=${base.id}`);
+  const urlInteiroTeor = dados.urlInteiroTeor || extrairUrlInteiroTeorDaFicha(fichaHtml);
+  const textoInteiroTeor = urlInteiroTeor ? await fetchText(urlInteiroTeor) : undefined;
   const autor = await buscarAutorPrincipal(base.id);
 
   const numero =
@@ -381,12 +421,21 @@ async function detalharDestaque(base: {
       dados.ementaDetalhada,
       dados.descricaoTipo,
       dados.urlInteiroTeor,
+      fichaHtml,
       textoInteiroTeor
-    );
+    ) ||
+    numeroFallback;
   const ano = numeroOpcional(dados.ano);
   const descricaoExtraida = extrairDescricaoDestaque(textoInteiroTeor);
   const ementaDetalhada = limparTexto(dados.ementaDetalhada);
   const ementa = limparTexto(dados.ementa);
+  const apresentante = extrairApresentantePolitico(
+    textoInteiroTeor,
+    fichaHtml,
+    ementaDetalhada,
+    ementa,
+    autor.partido
+  );
 
   return {
     id: dados.id,
@@ -403,7 +452,8 @@ async function detalharDestaque(base: {
     descricao: descricaoExtraida || ementaDetalhada || ementa || limparTexto(dados.descricaoTipo),
     autor: autor.nome,
     partidoAutor: autor.partido,
-    urlInteiroTeor: dados.urlInteiroTeor,
+    apresentante: apresentante || autor.partido,
+    urlInteiroTeor,
   };
 }
 
@@ -430,7 +480,7 @@ export async function buscarDestaques(id: number): Promise<Destaque[]> {
     );
 
     const detalhados = await Promise.all(
-      destaques.map((d) => detalharDestaque(d))
+      destaques.map((d, index) => detalharDestaque(d, index + 1))
     );
 
     return detalhados.sort((a, b) => (a.numero || 0) - (b.numero || 0));
