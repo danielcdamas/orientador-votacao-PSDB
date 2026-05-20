@@ -47,6 +47,25 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
   }
 }
 
+async function fetchText(url: string): Promise<string | undefined> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "text/html,text/plain,*/*" },
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return undefined;
+    return await res.text();
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function numeroOpcional(valor: unknown): number | undefined {
   if (typeof valor === "number" && Number.isFinite(valor)) return valor;
   if (typeof valor === "string" && valor.trim()) {
@@ -63,7 +82,7 @@ export function formatarIdentificador(p: {
 }): string {
   const numero = numeroOpcional(p.numero);
   const ano = numeroOpcional(p.ano);
-  const numeroAno = numero && ano ? ` ${numero}/${ano}` : "";
+  const numeroAno = numero && ano ? ` ${numero}/${ano}` : numero ? ` ${numero}` : "";
   return `${p.siglaTipo}${numeroAno}`.trim();
 }
 
@@ -76,8 +95,53 @@ function hojeISO(): string {
 }
 
 function limparTexto(texto?: string): string | undefined {
-  const limpo = texto?.replace(/\s+/g, " ").trim();
+  const limpo = texto
+    ?.replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
   return limpo || undefined;
+}
+
+function extrairNumeroDtq(...textos: Array<string | undefined>): number | undefined {
+  const texto = textos.filter(Boolean).join(" ");
+  const padroes = [
+    /DTQ\s*(?:n\.?\s*)?(\d+)\s*=>/i,
+    /DTQ\s*(?:n\.?\s*)?(\d+)\b/i,
+    /Destaque\s*(?:n\.?\s*)?(\d+)\b/i,
+    /filename=DTQ\+?(\d+)/i,
+    /filename=[^\s]*DTQ[^\d]*(\d+)/i,
+  ];
+
+  for (const padrao of padroes) {
+    const match = texto.match(padrao);
+    if (match?.[1]) return Number(match[1]);
+  }
+
+  return undefined;
+}
+
+function extrairDescricaoDestaque(textoBruto?: string): string | undefined {
+  const texto = limparTexto(textoBruto);
+  if (!texto) return undefined;
+
+  const padroes = [
+    /(destaque\s+para\s+.{20,500}?)(?:Sala\s+das\s+Sessões|SALA\s+DAS\s+SESSÕES|Assinado eletronicamente|Para encaminhar|\*CD|$)/i,
+    /(destaque\s+de\s+.{20,500}?)(?:Sala\s+das\s+Sessões|SALA\s+DAS\s+SESSÕES|Assinado eletronicamente|Para encaminhar|\*CD|$)/i,
+    /(destaque\s+em\s+separado\s+.{20,500}?)(?:Sala\s+das\s+Sessões|SALA\s+DAS\s+SESSÕES|Assinado eletronicamente|Para encaminhar|\*CD|$)/i,
+  ];
+
+  for (const padrao of padroes) {
+    const match = texto.match(padrao);
+    if (match?.[1]) return limparTexto(match[1])?.replace(/\s+\.$/, ".");
+  }
+
+  return undefined;
 }
 
 function normalizarTermoBusca(termo: string): {
@@ -257,8 +321,6 @@ async function buscarAutorPrincipal(idProposicao: number): Promise<{
     dados: Array<{
       nome?: string;
       siglaPartido?: string;
-      codPartido?: string;
-      uriPartido?: string;
     }>;
   };
 
@@ -307,9 +369,24 @@ async function detalharDestaque(base: {
     // Mantém os dados resumidos da lista de relacionadas.
   }
 
+  const textoInteiroTeor = dados.urlInteiroTeor
+    ? await fetchText(dados.urlInteiroTeor)
+    : undefined;
   const autor = await buscarAutorPrincipal(base.id);
-  const numero = numeroOpcional(dados.numero);
+
+  const numero =
+    numeroOpcional(dados.numero) ||
+    extrairNumeroDtq(
+      dados.ementa,
+      dados.ementaDetalhada,
+      dados.descricaoTipo,
+      dados.urlInteiroTeor,
+      textoInteiroTeor
+    );
   const ano = numeroOpcional(dados.ano);
+  const descricaoExtraida = extrairDescricaoDestaque(textoInteiroTeor);
+  const ementaDetalhada = limparTexto(dados.ementaDetalhada);
+  const ementa = limparTexto(dados.ementa);
 
   return {
     id: dados.id,
@@ -321,9 +398,9 @@ async function detalharDestaque(base: {
       numero,
       ano,
     }),
-    ementa: limparTexto(dados.ementa),
-    ementaDetalhada: limparTexto(dados.ementaDetalhada),
-    descricao: limparTexto(dados.ementaDetalhada || dados.ementa || dados.descricaoTipo),
+    ementa,
+    ementaDetalhada,
+    descricao: descricaoExtraida || ementaDetalhada || ementa || limparTexto(dados.descricaoTipo),
     autor: autor.nome,
     partidoAutor: autor.partido,
     urlInteiroTeor: dados.urlInteiroTeor,
