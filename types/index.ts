@@ -31,6 +31,8 @@ export interface Proposicao {
   identificador: string;
   /** Resumo curto (opcional, vindo de campos auxiliares) */
   descricaoTipo?: string;
+  /** Texto mais completo, quando a API disponibilizar */
+  ementaDetalhada?: string;
   /** Link para o inteiro teor (quando disponível) */
   urlInteiroTeor?: string;
   /** Status atual (quando disponível) */
@@ -50,8 +52,10 @@ export interface Destaque {
   ano?: number;
   identificador: string;
   ementa?: string;
+  ementaDetalhada?: string;
   descricao?: string;
   autor?: string;
+  partidoAutor?: string;
   urlInteiroTeor?: string;
 }
 
