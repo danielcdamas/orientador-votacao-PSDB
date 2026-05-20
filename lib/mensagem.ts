@@ -60,19 +60,51 @@ function obterIdentificadorDestaque(
   return idBase;
 }
 
-function descricaoDestaque(destaque: Destaque | null | undefined): string {
-  return sanitizarTexto(
-    destaque?.descricao || destaque?.ementaDetalhada || destaque?.ementa || ""
-  );
+function limparDescricaoDestaque(texto: string): string {
+  let limpo = sanitizarTexto(texto).replace(/\s+/g, " ");
+
+  limpo = limpo
+    .replace(/^DESTAQUE\s+PARA\s+VOTAÇÃO\s+EM\s+SEPARADO\s*-\s*[^.]*?Senhor\(a\)\s+Presidente,?\s*/i, "")
+    .replace(/^DESTAQUE\s+DE\s+EMENDA\s*-\s*[^.]*?Senhor\(a\)\s+Presidente,?\s*/i, "")
+    .replace(/^Destaque\s+para\s+Votação\s+em\s+Separado\s*-\s*[^.]*?Senhor\(a\)\s+Presidente,?\s*/i, "")
+    .replace(/^Destaque\s+de\s+Emenda\s*-\s*[^.]*?Senhor\(a\)\s+Presidente,?\s*/i, "")
+    .replace(/^Senhor\(a\)\s+Presidente,?\s*/i, "")
+    .replace(/^Requeiro\s+a\s+V\.\s*Exa?,?\s+nos\s+termos\s+do\s+art\.\s*161,?\s*I,?\s+do\s+Regimento\s+Interno\s+da\s+Câmara\s+dos\s+Deputados,?\s*/i, "")
+    .replace(/\s+apresentado\s+à\(ao\)\s+[^.]+$/i, "")
+    .replace(/\s+apresentado\s+ao\s+[^.]+$/i, "")
+    .trim();
+
+  if (/^destaque\s+para/i.test(limpo)) {
+    limpo = limpo.replace(/^destaque/i, "Destaque");
+  }
+
+  if (limpo && !/[.!?]$/.test(limpo)) limpo += ".";
+  return limpo;
 }
 
-function rotuloDestaque(fase: Fase, destaque: Destaque | null | undefined): string {
+function descricaoDestaque(destaque: Destaque | null | undefined): string {
+  const bruto = destaque?.descricao || destaque?.ementaDetalhada || destaque?.ementa || "";
+  return limparDescricaoDestaque(bruto);
+}
+
+function rotuloDestaque(
+  fase: Fase,
+  destaque: Destaque | null | undefined,
+  orientacao: "SIM" | "NAO"
+): string {
+  if (fase === "DESTAQUE_TEXTO") {
+    return orientacao === "SIM"
+      ? "à manutenção do texto objeto do Destaque para Votação em Separado"
+      : "à supressão do texto objeto do Destaque para Votação em Separado";
+  }
+
   if (fase === "DESTAQUE_EMENDA") {
     const texto = `${destaque?.ementa || ""} ${destaque?.ementaDetalhada || ""} ${destaque?.descricao || ""}`;
     const emenda = texto.match(/(?:EMP|emenda)\s+(?:de\s+plen[aá]rio\s+)?(?:n[ºo.]\s*)?(\d+)/i);
     if (emenda?.[1]) return `à Emenda de Plenário nº ${emenda[1]}`;
     return "à emenda destacada";
   }
+
   return "ao texto";
 }
 
@@ -112,11 +144,13 @@ export function gerarMensagem(dados: DadosMensagem): string {
     linhas.push(
       `${FEDERACAO} orienta ${orientacaoNegrito} ${rotuloDestaque(
         fase,
-        destaqueSelecionado
+        destaqueSelecionado,
+        orientacao
       )}${complemento}.`
     );
 
-    const desc = descricaoDestaque(destaqueSelecionado);
+    const just = sanitizarTexto(justificativa || "");
+    const desc = just || descricaoDestaque(destaqueSelecionado);
     if (desc) {
       linhas.push("");
       linhas.push(desc);
@@ -140,12 +174,12 @@ export function gerarMensagem(dados: DadosMensagem): string {
     } else {
       linhas.push(`${FEDERACAO} – orientação ${rotulo} depende de *análise técnica*.`);
     }
-  }
 
-  const just = sanitizarTexto(justificativa || "");
-  if (just) {
-    linhas.push("");
-    linhas.push(just);
+    const just = sanitizarTexto(justificativa || "");
+    if (just) {
+      linhas.push("");
+      linhas.push(just);
+    }
   }
 
   return linhas.join("\n").replace(/\n{3,}/g, "\n\n");
