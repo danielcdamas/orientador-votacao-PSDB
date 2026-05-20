@@ -2,7 +2,7 @@
 // Cliente da API de Dados Abertos da Câmara dos Deputados
 // Documentação oficial: https://dadosabertos.camara.leg.br/swagger/api.html
 // =========================================================
-import type { Proposicao, Parecer } from "@/types";
+import type { Destaque, Parecer, Proposicao } from "@/types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_CAMARA_API_BASE ||
@@ -59,10 +59,14 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
  */
 export function formatarIdentificador(p: {
   siglaTipo: string;
-  numero: number;
-  ano: number;
+  numero?: number;
+  ano?: number;
 }): string {
-  return `${p.siglaTipo} ${p.numero}/${p.ano}`;
+  const numeroAno =
+    typeof p.numero === "number" && typeof p.ano === "number"
+      ? ` ${p.numero}/${p.ano}`
+      : "";
+  return `${p.siglaTipo}${numeroAno}`.trim();
 }
 
 /**
@@ -74,6 +78,50 @@ function hojeISO(): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function normalizarTermoBusca(termo: string): {
+  siglaTipo?: string;
+  numero?: string;
+  ano?: string;
+  palavraChave: string;
+} {
+  const limpo = termo.trim().replace(/\s+/g, " ");
+  const match = limpo.match(/^([A-Za-z]{2,8})\s*[- ]?\s*(\d+)\s*[\/ ]\s*(\d{4})$/);
+
+  if (match) {
+    return {
+      siglaTipo: match[1].toUpperCase(),
+      numero: match[2],
+      ano: match[3],
+      palavraChave: limpo,
+    };
+  }
+
+  return { palavraChave: limpo };
+}
+
+function mapearProposicao(d: {
+  id: number;
+  siglaTipo: string;
+  numero: number;
+  ano: number;
+  ementa?: string;
+  descricaoTipo?: string;
+  urlInteiroTeor?: string;
+  statusProposicao?: Proposicao["statusProposicao"];
+}): Proposicao {
+  return {
+    id: d.id,
+    siglaTipo: d.siglaTipo,
+    numero: d.numero,
+    ano: d.ano,
+    ementa: d.ementa || "(Sem ementa cadastrada.)",
+    identificador: formatarIdentificador(d),
+    descricaoTipo: d.descricaoTipo,
+    urlInteiroTeor: d.urlInteiroTeor,
+    statusProposicao: d.statusProposicao,
+  };
 }
 
 /**
@@ -153,14 +201,7 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
         // Evitar duplicatas
         if (todasProposicoes.some((x) => x.id === p.id)) continue;
 
-        todasProposicoes.push({
-          id: p.id,
-          siglaTipo: p.siglaTipo,
-          numero: p.numero,
-          ano: p.ano,
-          ementa: p.ementa || "(Sem ementa cadastrada.)",
-          identificador: formatarIdentificador(p),
-        });
+        todasProposicoes.push(mapearProposicao(p));
       }
     } catch {
       // se falhar para um evento, segue para o próximo
@@ -169,6 +210,43 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   }
 
   return todasProposicoes;
+}
+
+/**
+ * Busca proposições na base geral da Câmara, não apenas na pauta do dia.
+ * Aceita tanto formatos como "PL 1625/2026" quanto palavras-chave.
+ */
+export async function buscarProposicoes(termo: string): Promise<Proposicao[]> {
+  const busca = normalizarTermoBusca(termo);
+  if (!busca.palavraChave || busca.palavraChave.length < 2) return [];
+
+  const url = new URL(`${BASE_URL}/proposicoes`);
+  url.searchParams.set("ordem", "DESC");
+  url.searchParams.set("ordenarPor", "ano");
+  url.searchParams.set("itens", "15");
+
+  if (busca.siglaTipo && busca.numero && busca.ano) {
+    url.searchParams.set("siglaTipo", busca.siglaTipo);
+    url.searchParams.set("numero", busca.numero);
+    url.searchParams.set("ano", busca.ano);
+  } else {
+    url.searchParams.set("keywords", busca.palavraChave);
+  }
+
+  type Resp = {
+    dados: Array<{
+      id: number;
+      siglaTipo: string;
+      numero: number;
+      ano: number;
+      ementa?: string;
+      descricaoTipo?: string;
+      urlInteiroTeor?: string;
+    }>;
+  };
+
+  const resp = await fetchJson<Resp>(url.toString());
+  return (resp.dados || []).map(mapearProposicao);
 }
 
 /**
@@ -190,19 +268,50 @@ export async function buscarProposicao(id: number): Promise<Proposicao> {
   };
 
   const resp = await fetchJson<Resp>(url);
-  const d = resp.dados;
+  return mapearProposicao(resp.dados);
+}
 
-  return {
-    id: d.id,
-    siglaTipo: d.siglaTipo,
-    numero: d.numero,
-    ano: d.ano,
-    ementa: d.ementa,
-    identificador: formatarIdentificador(d),
-    descricaoTipo: d.descricaoTipo,
-    urlInteiroTeor: d.urlInteiroTeor,
-    statusProposicao: d.statusProposicao,
+/**
+ * Busca destaques relacionados a uma proposição.
+ * Observação: a API da Câmara pode variar a disponibilidade dos DTQs.
+ * Quando não houver retorno estruturado, o app mantém campo manual como fallback.
+ */
+export async function buscarDestaques(id: number): Promise<Destaque[]> {
+  const url = `${BASE_URL}/proposicoes/${id}/relacionadas`;
+
+  type Resp = {
+    dados: Array<{
+      id: number;
+      siglaTipo: string;
+      numero?: number;
+      ano?: number;
+      ementa?: string;
+      descricaoTipo?: string;
+      urlInteiroTeor?: string;
+      uriAutores?: string;
+    }>;
   };
+
+  try {
+    const resp = await fetchJson<Resp>(url);
+    const relacionadas = resp.dados || [];
+    const destaques = relacionadas.filter((p) =>
+      String(p.siglaTipo || "").toUpperCase().startsWith("DTQ")
+    );
+
+    return destaques.map((d) => ({
+      id: d.id,
+      siglaTipo: d.siglaTipo,
+      numero: d.numero,
+      ano: d.ano,
+      identificador: formatarIdentificador(d),
+      ementa: d.ementa,
+      descricao: d.descricaoTipo,
+      urlInteiroTeor: d.urlInteiroTeor,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**
