@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <circle cx="100" cy="100" r="96" fill="#0066B3"/>
+  <polygon points="40,68 100,32 160,68 160,132 100,168 40,132"
+           fill="#FFCC00" stroke="#003D7A" stroke-width="3" stroke-linejoin="round"/>
+  <text x="100" y="118" text-anchor="middle"
+        font-family="Arial, sans-serif" font-weight="900" font-size="42"
+        fill="#003D7A" letter-spacing="1">PSDB</text>
+</svg>
