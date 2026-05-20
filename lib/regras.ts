@@ -73,5 +73,7 @@ export function aplicarRegra(posicao: Posicao, fase: Fase): ResultadoRegra {
       return { orientacao: "SIM", exigeAnalise: false, rotuloFase };
     case "MERITO":
       return { orientacao: "NAO", exigeAnalise: false, rotuloFase };
+    default:
+      return { orientacao: "ANALISE", exigeAnalise: true, rotuloFase };
   }
 }
