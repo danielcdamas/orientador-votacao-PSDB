@@ -49,21 +49,27 @@ function formatarOrientacao(valor: "SIM" | "NAO"): string {
   return valor === "SIM" ? "*SIM*" : "*NÃO*";
 }
 
-function obterIdentificadorDestaque(destaque: Destaque | null | undefined, manual: string | undefined): string {
-  if (destaque?.identificador) return destaque.identificador;
-  return sanitizarTexto(manual || "");
+function obterIdentificadorDestaque(
+  destaque: Destaque | null | undefined,
+  manual: string | undefined
+): string {
+  const idBase = destaque?.identificador || sanitizarTexto(manual || "");
+  const apresentante = sanitizarTexto(destaque?.apresentante || "");
+
+  if (idBase && apresentante) return `${idBase} – ${apresentante}`;
+  return idBase;
 }
 
 function descricaoDestaque(destaque: Destaque | null | undefined): string {
-  const ementa = sanitizarTexto(destaque?.ementa || "");
-  if (ementa) return ementa;
-  return sanitizarTexto(destaque?.descricao || "");
+  return sanitizarTexto(
+    destaque?.descricao || destaque?.ementaDetalhada || destaque?.ementa || ""
+  );
 }
 
 function rotuloDestaque(fase: Fase, destaque: Destaque | null | undefined): string {
   if (fase === "DESTAQUE_EMENDA") {
-    const texto = `${destaque?.ementa || ""} ${destaque?.descricao || ""}`;
-    const emenda = texto.match(/emenda\s+(?:de\s+plen[aá]rio\s+)?(?:n[ºo.]\s*)?(\d+)/i);
+    const texto = `${destaque?.ementa || ""} ${destaque?.ementaDetalhada || ""} ${destaque?.descricao || ""}`;
+    const emenda = texto.match(/(?:EMP|emenda)\s+(?:de\s+plen[aá]rio\s+)?(?:n[ºo.]\s*)?(\d+)/i);
     if (emenda?.[1]) return `à Emenda de Plenário nº ${emenda[1]}`;
     return "à emenda destacada";
   }
