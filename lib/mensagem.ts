@@ -30,19 +30,49 @@ function ehRequerimentoUrgencia(proposicao: Proposicao): boolean {
   return proposicao.siglaTipo.toUpperCase() === "REQ" && texto.includes("urgência");
 }
 
+function resumirEmenta(texto: string): string {
+  const limpo = texto.trim().replace(/\s+/g, " ");
+
+  // Se a ementa já é curta, mantém integral
+  if (limpo.length <= 180) return limpo;
+
+  // 1) Tenta encontrar o padrão "Altera a Lei nº X, de DATA," e troca por "Altera a Lei nº X"
+  let resumido = limpo.replace(
+    /(Altera|Modifica|Acrescenta|Inclui|Revoga)\s+a\s+Lei\s+n[ºo.]\s*([\d.]+),?\s+de\s+\d{1,2}\s+de\s+\w+\s+de\s+\d{4},?/i,
+    "$1 a Lei nº $2"
+  );
+
+  // 2) Se ainda estiver longa, corta no primeiro ponto final seguido de espaço
+  if (resumido.length > 220) {
+    const primeiroPonto = resumido.indexOf(". ");
+    if (primeiroPonto > 50 && primeiroPonto < 200) {
+      resumido = resumido.slice(0, primeiroPonto + 1);
+    }
+  }
+
+  // 3) Se mesmo assim continuar muito longa, trunca de forma educada
+  if (resumido.length > 260) {
+    resumido = resumido.slice(0, 240).replace(/[,;:\s]+\S*$/, "") + "...";
+  }
+
+  return resumido;
+}
+
 function adaptarEmenta(proposicao: Proposicao): string {
   const original = proposicao.ementa
     ? proposicao.ementa.trim().replace(/\s+/g, " ")
     : "(Ementa não disponível.)";
 
-  if (!ehRequerimentoUrgencia(proposicao)) return original;
+  if (ehRequerimentoUrgencia(proposicao)) {
+    return original
+      .replace(/^requer,?\s+nos\s+termos\s+do\s+art\.\s*155\s+do\s+ricd,?\s*/i, "")
+      .replace(/^requer\s+urgência\s+para/i, "urgência para")
+      .replace(/^requer\s+/i, "")
+      .replace(/^urgência\s+urgentíssima\s+para/i, "urgência para")
+      .trim();
+  }
 
-  return original
-    .replace(/^requer,?\s+nos\s+termos\s+do\s+art\.\s*155\s+do\s+ricd,?\s*/i, "")
-    .replace(/^requer\s+urgência\s+para/i, "urgência para")
-    .replace(/^requer\s+/i, "")
-    .replace(/^urgência\s+urgentíssima\s+para/i, "urgência para")
-    .trim();
+  return resumirEmenta(original);
 }
 
 function formatarOrientacao(valor: "SIM" | "NAO"): string {
