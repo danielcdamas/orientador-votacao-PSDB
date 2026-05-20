@@ -22,6 +22,10 @@ function textoDestaque(d: Destaque): string {
   return d.ementaDetalhada || d.ementa || d.descricao || "Sem descrição cadastrada.";
 }
 
+function apresentanteDestaque(d: Destaque): string {
+  return d.apresentante || d.partidoAutor || "";
+}
+
 export default function HomePage() {
   const [pauta, setPauta] = useState<Proposicao[]>([]);
   const [carregandoPauta, setCarregandoPauta] = useState(true);
@@ -337,6 +341,7 @@ export default function HomePage() {
                 <div className="space-y-2 max-h-80 overflow-y-auto pr-1 -mr-1">
                   {destaques.map((d) => {
                     const ativo = destaqueSelecionado?.id === d.id;
+                    const apresentante = apresentanteDestaque(d);
                     return (
                       <button
                         key={d.id}
@@ -357,9 +362,9 @@ export default function HomePage() {
                             <span className="font-bold text-psdb-darkblue text-sm">
                               {d.identificador}
                             </span>
-                            {d.autor && (
+                            {apresentante && (
                               <div className="text-[10px] text-slate-500 mt-0.5">
-                                Autor: {d.autor}{d.partidoAutor ? ` (${d.partidoAutor})` : ""}
+                                Apresentante: {apresentante}
                               </div>
                             )}
                           </div>
