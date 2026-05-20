@@ -66,6 +66,64 @@ async function fetchText(url: string): Promise<string | undefined> {
     clearTimeout(timeoutId);
   }
 }
+// =========================================================
+// Mapeamento de autoria política do destaque
+// Converte o partido do deputado signatário para o nome
+// do bloco / federação / partido conforme negociação no Plenário.
+// =========================================================
+function mapearApresentantePolitico(partido?: string): string | undefined {
+  if (!partido) return undefined;
+  const p = partido.trim().toUpperCase();
+
+  const BLOCO_UNIAO = "UNIÃO, PP, PSD, REPUBLICANOS, MDB, Federação PSDB CIDADANIA, PODE";
+
+  // Bloco majoritário (UNIÃO / PP / PSD / REPUBLICANOS / MDB / PSDB / CIDADANIA / PODE)
+  if (
+    p === "UNIÃO" || p === "UNIAO" || p === "UB" ||
+    p === "PP" || p === "PROGRESSISTAS" ||
+    p === "PSD" ||
+    p === "REPUBLICANOS" || p === "REP" ||
+    p === "MDB" ||
+    p === "PSDB" ||
+    p === "CIDADANIA" || p === "CID" ||
+    p === "PODE" || p === "PODEMOS"
+  ) {
+    return BLOCO_UNIAO;
+  }
+
+  // Federação PT-PCdoB-PV
+  if (p === "PT" || p === "PCDOB" || p === "PC DO B" || p === "PV") {
+    return "Fdr PT-PCdoB-PV";
+  }
+
+  // Federação PSOL-REDE
+  if (p === "PSOL" || p === "REDE") {
+    return "Fdr PSOL-REDE";
+  }
+
+  // Partidos solo (mantêm o próprio nome)
+  if (
+    p === "PL" ||
+    p === "PSB" ||
+    p === "PDT" ||
+    p === "SOLIDARIEDADE" || p === "SD" ||
+    p === "AVANTE" ||
+    p === "NOVO" ||
+    p === "MISSÃO" || p === "MISSAO"
+  ) {
+    return p === "MISSAO" ? "MISSÃO" :
+           p === "UNIAO" ? "UNIÃO" :
+           p === "SD" ? "SOLIDARIEDADE" :
+           p === "PODEMOS" ? "PODE" :
+           p === "PROGRESSISTAS" ? "PP" :
+           p === "REP" ? "REPUBLICANOS" :
+           p === "UB" ? "UNIÃO" :
+           p;
+  }
+
+  // Partido não mapeado: devolve o próprio sigla como fallback seguro
+  return p;
+}
 
 function numeroOpcional(valor: unknown): number | undefined {
   if (typeof valor === "number" && Number.isFinite(valor)) return valor;
@@ -429,13 +487,20 @@ async function detalharDestaque(
   const descricaoExtraida = extrairDescricaoDestaque(textoInteiroTeor);
   const ementaDetalhada = limparTexto(dados.ementaDetalhada);
   const ementa = limparTexto(dados.ementa);
-  const apresentante = extrairApresentantePolitico(
+ const apresentanteBruto = extrairApresentantePolitico(
     textoInteiroTeor,
     fichaHtml,
     ementaDetalhada,
     ementa,
     autor.partido
   );
+
+  // Prioridade: mapeamento pelo partido do signatário (regra oficial).
+  // Fallback: texto extraído do inteiro teor.
+  const apresentante =
+    mapearApresentantePolitico(autor.partido) ||
+    apresentanteBruto ||
+    autor.partido;
 
   return {
     id: dados.id,
@@ -452,7 +517,7 @@ async function detalharDestaque(
     descricao: descricaoExtraida || ementaDetalhada || ementa || limparTexto(dados.descricaoTipo),
     autor: autor.nome,
     partidoAutor: autor.partido,
-    apresentante: apresentante || autor.partido,
+    apresentante,
     urlInteiroTeor,
   };
 }
