@@ -9,44 +9,77 @@
 // 4) Nunca gerar bloco "colado" sem separação
 // =========================================================
 
-import type { DadosMensagem } from "@/types";
+import type { DadosMensagem, Destaque, Fase, Proposicao } from "@/types";
 import { aplicarRegra } from "./regras";
 
 const FEDERACAO =
   process.env.NEXT_PUBLIC_FEDERACAO_NOME || "Federação PSDB/CID";
 
-/**
- * Sanitiza texto livre (justificativa, identificador de destaque)
- * removendo caracteres que possam quebrar a mensagem.
- */
 export function sanitizarTexto(texto: string): string {
   if (!texto) return "";
   return texto
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
-    // remove caracteres de controle exceto quebra de linha
     .replace(/[\x00-\x09\x0B-\x1F\x7F]/g, "")
-    // limita tamanho a 1000 caracteres
-    .slice(0, 1000)
+    .slice(0, 1500)
     .trim();
 }
 
-/**
- * Gera a mensagem final pronta para colar no WhatsApp.
- *
- * Formato base:
- *
- *   *VOTAÇÃO NOMINAL*
- *
- *   [PROPOSIÇÃO] – [EMENTA]
- *
- *   Federação PSDB/CID orienta *SIM/NÃO* [complemento].
- *
- *   [Justificativa opcional.]
- */
+function ehRequerimentoUrgencia(proposicao: Proposicao): boolean {
+  const texto = `${proposicao.identificador} ${proposicao.ementa}`.toLowerCase();
+  return proposicao.siglaTipo.toUpperCase() === "REQ" && texto.includes("urgência");
+}
+
+function adaptarEmenta(proposicao: Proposicao): string {
+  const original = proposicao.ementa
+    ? proposicao.ementa.trim().replace(/\s+/g, " ")
+    : "(Ementa não disponível.)";
+
+  if (!ehRequerimentoUrgencia(proposicao)) return original;
+
+  return original
+    .replace(/^requer,?\s+nos\s+termos\s+do\s+art\.\s*155\s+do\s+ricd,?\s*/i, "")
+    .replace(/^requer\s+urgência\s+para/i, "urgência para")
+    .replace(/^requer\s+/i, "")
+    .replace(/^urgência\s+urgentíssima\s+para/i, "urgência para")
+    .trim();
+}
+
+function formatarOrientacao(valor: "SIM" | "NAO"): string {
+  return valor === "SIM" ? "*SIM*" : "*NÃO*";
+}
+
+function obterIdentificadorDestaque(destaque: Destaque | null | undefined, manual: string | undefined): string {
+  if (destaque?.identificador) return destaque.identificador;
+  return sanitizarTexto(manual || "");
+}
+
+function descricaoDestaque(destaque: Destaque | null | undefined): string {
+  const ementa = sanitizarTexto(destaque?.ementa || "");
+  if (ementa) return ementa;
+  return sanitizarTexto(destaque?.descricao || "");
+}
+
+function rotuloDestaque(fase: Fase, destaque: Destaque | null | undefined): string {
+  if (fase === "DESTAQUE_EMENDA") {
+    const texto = `${destaque?.ementa || ""} ${destaque?.descricao || ""}`;
+    const emenda = texto.match(/emenda\s+(?:de\s+plen[aá]rio\s+)?(?:n[ºo.]\s*)?(\d+)/i);
+    if (emenda?.[1]) return `à Emenda de Plenário nº ${emenda[1]}`;
+    return "à emenda destacada";
+  }
+  return "ao texto";
+}
+
 export function gerarMensagem(dados: DadosMensagem): string {
-  const { proposicao, posicao, fase, justificativa, identificadorDestaque } =
-    dados;
+  const {
+    proposicao,
+    posicao,
+    fase,
+    justificativa,
+    identificadorDestaque,
+    destaqueSelecionado,
+    orientacaoDestaque,
+  } = dados;
 
   if (!proposicao || !posicao || !fase) {
     throw new Error(
@@ -54,70 +87,64 @@ export function gerarMensagem(dados: DadosMensagem): string {
     );
   }
 
-  const regra = aplicarRegra(posicao, fase);
-
-  // Cabeçalho
   const linhas: string[] = [];
   linhas.push("*VOTAÇÃO NOMINAL*");
-  linhas.push(""); // linha em branco
+  linhas.push("");
 
-  // Proposição + ementa
-  const ementa = proposicao.ementa
-    ? proposicao.ementa.trim().replace(/\s+/g, " ")
-    : "(Ementa não disponível.)";
+  const ementa = adaptarEmenta(proposicao);
   linhas.push(`${proposicao.identificador} – ${ementa}`);
-  linhas.push(""); // linha em branco
+  linhas.push("");
 
-  // Linha de orientação
-  let textoOrientacao: string;
-  const orientacaoNegrito =
-    regra.orientacao === "SIM"
-      ? "*SIM*"
-      : regra.orientacao === "NAO"
-        ? "*NÃO*"
-        : null;
+  const ehDestaque = fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA";
 
-  if (orientacaoNegrito) {
-    // Caso normal: SIM ou NÃO
-    if (
-      fase === "DESTAQUE_TEXTO" &&
-      identificadorDestaque &&
-      identificadorDestaque.trim()
-    ) {
-      // Exemplo: "Federação PSDB/CID orienta SIM ao texto (DTQ 3 - NOVO)."
-      textoOrientacao = `${FEDERACAO} orienta ${orientacaoNegrito} ${regra.rotuloFase} (${sanitizarTexto(
-        identificadorDestaque
-      )}).`;
-    } else {
-      textoOrientacao = `${FEDERACAO} orienta ${orientacaoNegrito} ${regra.rotuloFase}.`;
+  if (ehDestaque) {
+    const orientacao = orientacaoDestaque || (posicao === "A_FAVOR" ? "SIM" : "NAO");
+    const orientacaoNegrito = formatarOrientacao(orientacao);
+    const idDtq = obterIdentificadorDestaque(destaqueSelecionado, identificadorDestaque);
+    const complemento = idDtq ? ` (${idDtq})` : "";
+
+    linhas.push(
+      `${FEDERACAO} orienta ${orientacaoNegrito} ${rotuloDestaque(
+        fase,
+        destaqueSelecionado
+      )}${complemento}.`
+    );
+
+    const desc = descricaoDestaque(destaqueSelecionado);
+    if (desc) {
+      linhas.push("");
+      linhas.push(desc);
     }
   } else {
-    // Caso "ANÁLISE TÉCNICA"
-    const sufixoDestaque =
-      fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA"
-        ? identificadorDestaque && identificadorDestaque.trim()
-          ? ` (${sanitizarTexto(identificadorDestaque)})`
-          : ""
-        : "";
-    textoOrientacao = `${FEDERACAO} – orientação ${regra.rotuloFase}${sufixoDestaque} depende de *análise técnica*.`;
-  }
-  linhas.push(textoOrientacao);
+    const regra = aplicarRegra(posicao, fase);
+    const orientacaoNegrito =
+      regra.orientacao === "SIM"
+        ? "*SIM*"
+        : regra.orientacao === "NAO"
+          ? "*NÃO*"
+          : null;
 
-  // Justificativa opcional
+    const rotulo =
+      fase === "MERITO" && ehRequerimentoUrgencia(proposicao)
+        ? "à urgência"
+        : regra.rotuloFase;
+
+    if (orientacaoNegrito) {
+      linhas.push(`${FEDERACAO} orienta ${orientacaoNegrito} ${rotulo}.`);
+    } else {
+      linhas.push(`${FEDERACAO} – orientação ${rotulo} depende de *análise técnica*.`);
+    }
+  }
+
   const just = sanitizarTexto(justificativa || "");
   if (just) {
-    linhas.push(""); // linha em branco
+    linhas.push("");
     linhas.push(just);
   }
 
-  // Junta com quebras de linha e garante apenas uma linha em branco entre blocos
   return linhas.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
-/**
- * Versão "preview" para mostrar na UI.
- * É idêntica à versão final — o WhatsApp interpreta os asteriscos.
- */
 export function gerarPreview(dados: DadosMensagem): string {
   return gerarMensagem(dados);
 }
