@@ -63,9 +63,6 @@ export function aplicarRegra(posicao: Posicao, fase: Fase): ResultadoRegra {
         return { orientacao: "NAO", exigeAnalise: false, rotuloFase };
       case "MERITO":
         return { orientacao: "SIM", exigeAnalise: false, rotuloFase };
-      case "DESTAQUE_TEXTO":
-      case "DESTAQUE_EMENDA":
-        return { orientacao: "ANALISE", exigeAnalise: true, rotuloFase };
     }
   }
 
@@ -76,8 +73,5 @@ export function aplicarRegra(posicao: Posicao, fase: Fase): ResultadoRegra {
       return { orientacao: "SIM", exigeAnalise: false, rotuloFase };
     case "MERITO":
       return { orientacao: "NAO", exigeAnalise: false, rotuloFase };
-    case "DESTAQUE_TEXTO":
-    case "DESTAQUE_EMENDA":
-      return { orientacao: "ANALISE", exigeAnalise: true, rotuloFase };
   }
 }
