@@ -3,15 +3,32 @@
 // Retorna a pauta do Plenário do dia (ou mais recente).
 // =========================================================
 import { NextResponse } from "next/server";
-import { buscarPautaDoDia } from "@/lib/camara";
+import { buscarPautaDoDia, buscarProposicoes } from "@/lib/camara";
 import type { ApiResponse, Proposicao } from "@/types";
 
 export const runtime = "nodejs";
 // Revalida a cada 5 minutos
 export const revalidate = 300;
 
-export async function GET(): Promise<NextResponse<ApiResponse<Proposicao[]>>> {
+export async function GET(req: Request): Promise<NextResponse<ApiResponse<Proposicao[]>>> {
   try {
+    const url = new URL(req.url);
+    const termo = url.searchParams.get("q") || "";
+
+    // Se há termo de busca, faz busca livre
+    if (termo.trim().length >= 2) {
+      const proposicoes = await buscarProposicoes(termo);
+      return NextResponse.json({
+        ok: true,
+        data: proposicoes,
+        message:
+          proposicoes.length === 0
+            ? "Nenhuma proposição encontrada com esse termo."
+            : undefined,
+      });
+    }
+
+    // Caso contrário, retorna a pauta do dia
     const proposicoes = await buscarPautaDoDia();
     return NextResponse.json({
       ok: true,

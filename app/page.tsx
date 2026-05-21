@@ -5,11 +5,12 @@ import { Header } from "@/components/Header";
 import { PropSelector } from "@/components/PropSelector";
 import { PositionPicker } from "@/components/PositionPicker";
 import { PhasePicker } from "@/components/PhasePicker";
+import { DestaqueSelector } from "@/components/DestaqueSelector";
 import { MessagePreview } from "@/components/MessagePreview";
 import { SkeletonCard, Spinner } from "@/components/Loading";
 import { ErrorBanner, EmptyState } from "@/components/ErrorBanner";
 import { gerarMensagem } from "@/lib/mensagem";
-import type { ApiResponse, Fase, Posicao, Proposicao } from "@/types";
+import type { ApiResponse, Destaque, Fase, Posicao, Proposicao } from "@/types";
 
 export default function HomePage() {
   // Estado principal
@@ -23,6 +24,10 @@ export default function HomePage() {
   const [fase, setFase] = useState<Fase | null>(null);
   const [identificadorDestaque, setIdentificadorDestaque] = useState("");
   const [justificativa, setJustificativa] = useState("");
+
+  const [destaques, setDestaques] = useState<Destaque[]>([]);
+  const [carregandoDestaques, setCarregandoDestaques] = useState(false);
+  const [destaquesSelecionado, setDestaquesSelecionado] = useState<Destaque | null>(null);
 
   const [mensagemGerada, setMensagemGerada] = useState<string>("");
   const [editouMensagem, setEditouMensagem] = useState(false);
@@ -61,6 +66,36 @@ export default function HomePage() {
     carregarPauta();
   }, [carregarPauta]);
 
+  // Carrega destaques quando a proposição muda
+  useEffect(() => {
+    if (!selecionada) {
+      setDestaques([]);
+      return;
+    }
+
+    const carregarDestaques = async () => {
+      setCarregandoDestaques(true);
+      try {
+        const res = await fetch(
+          `/api/proposicoes/${selecionada.id}/destaques`,
+          { cache: "no-store" }
+        );
+        const json: ApiResponse<Destaque[]> = await res.json();
+        if (json.ok) {
+          setDestaques(json.data || []);
+        } else {
+          setDestaques([]);
+        }
+      } catch {
+        setDestaques([]);
+      } finally {
+        setCarregandoDestaques(false);
+      }
+    };
+
+    carregarDestaques();
+  }, [selecionada]);
+
   // Detecta se pode gerar mensagem
   const podeGerar = useMemo(
     () => Boolean(selecionada && posicao && fase),
@@ -77,6 +112,7 @@ export default function HomePage() {
         fase,
         justificativa,
         identificadorDestaque,
+        destaque: destaquesSelecionado,
       });
       setMensagemGerada(texto);
     } catch {
@@ -89,6 +125,7 @@ export default function HomePage() {
     fase,
     justificativa,
     identificadorDestaque,
+    destaquesSelecionado,
     editouMensagem,
   ]);
 
@@ -101,6 +138,7 @@ export default function HomePage() {
       fase,
       justificativa,
       identificadorDestaque,
+      destaque: destaquesSelecionado,
     });
     setMensagemGerada(texto);
     // rola até o preview (UX mobile)
@@ -116,11 +154,27 @@ export default function HomePage() {
     setEditouMensagem(true);
   }
 
+  function handleSelecionarDestaque(destaqueId: number | null) {
+    if (!destaqueId) {
+      setIdentificadorDestaque("");
+      setDestaquesSelecionado(null);
+      return;
+    }
+
+    const destaque = destaques.find((d) => d.id === destaqueId);
+    if (destaque) {
+      setIdentificadorDestaque(destaque.identificador);
+      setDestaquesSelecionado(destaque);
+      setEditouMensagem(false);
+    }
+  }
+
   function handleReset() {
     setSelecionada(null);
     setPosicao(null);
     setFase(null);
     setIdentificadorDestaque("");
+    setDestaquesSelecionado(null);
     setJustificativa("");
     setMensagemGerada("");
     setEditouMensagem(false);
@@ -188,7 +242,22 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 2) Posição */}
+        {/* 2) Destaques disponíveis */}
+        {selecionada && destaques.length > 0 && (
+          <section className="mb-4">
+            <DestaqueSelector
+              destaques={destaques}
+              selectedId={
+                destaques.find((d) => d.identificador === identificadorDestaque)
+                  ?.id || null
+              }
+              onChange={handleSelecionarDestaque}
+              carregando={carregandoDestaques}
+            />
+          </section>
+        )}
+
+        {/* 3) Posição */}
         {selecionada && (
           <section className="mb-4">
             <PositionPicker
@@ -201,7 +270,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 3) Fase */}
+        {/* 4) Fase */}
         {selecionada && posicao && (
           <section className="mb-4">
             <PhasePicker
@@ -220,7 +289,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 4) Justificativa opcional */}
+        {/* 5) Justificativa opcional */}
         {selecionada && posicao && fase && (
           <section className="mb-4">
             <div className="card animate-slide-up">
@@ -252,7 +321,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 5) Botão Gerar */}
+        {/* 6) Botão Gerar */}
         {selecionada && posicao && fase && (
           <section className="mb-4 flex flex-col sm:flex-row gap-2">
             <button
@@ -283,7 +352,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 6) Preview */}
+        {/* 7) Preview */}
         {mensagemGerada && (
           <section id="preview-mensagem" className="mb-4 scroll-mt-20">
             <MessagePreview

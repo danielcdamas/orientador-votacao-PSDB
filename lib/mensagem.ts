@@ -45,7 +45,7 @@ export function sanitizarTexto(texto: string): string {
  *   [Justificativa opcional.]
  */
 export function gerarMensagem(dados: DadosMensagem): string {
-  const { proposicao, posicao, fase, justificativa, identificadorDestaque } =
+  const { proposicao, posicao, fase, justificativa, identificadorDestaque, destaque } =
     dados;
 
   if (!proposicao || !posicao || !fase) {
@@ -79,27 +79,44 @@ export function gerarMensagem(dados: DadosMensagem): string {
 
   if (orientacaoNegrito) {
     // Caso normal: SIM ou NÃO
-    if (
-      fase === "DESTAQUE_TEXTO" &&
+    if (fase === "DESTAQUE_TEXTO" && identificadorDestaque && identificadorDestaque.trim()) {
+      // Para destaque de texto: "à manutenção do texto, objeto do destaque para votação em separado (DTQ 1 – NOVO)"
+      const dtqInfo = sanitizarTexto(identificadorDestaque);
+      textoOrientacao = `${FEDERACAO} orienta ${orientacaoNegrito} à manutenção do texto, objeto do destaque para votação em separado (${dtqInfo}).`;
+    } else if (
+      fase === "DESTAQUE_EMENDA" &&
+      destaque &&
       identificadorDestaque &&
       identificadorDestaque.trim()
     ) {
-      // Exemplo: "Federação PSDB/CID orienta SIM ao texto (DTQ 3 - NOVO)."
-      textoOrientacao = `${FEDERACAO} orienta ${orientacaoNegrito} ${regra.rotuloFase} (${sanitizarTexto(
-        identificadorDestaque
-      )}).`;
+      // Para destaque de emenda: "à Emenda de Plenário nº 3 (DTQ 7 – APRESENTANTE)"
+      const numeroEmenda = destaque.numero || "?";
+      const apresentante = destaque.apresentante ? ` – ${destaque.apresentante}` : "";
+      const dtqInfo = sanitizarTexto(identificadorDestaque);
+      textoOrientacao = `${FEDERACAO} orienta ${orientacaoNegrito} à Emenda de Plenário nº ${numeroEmenda} (${dtqInfo}${apresentante}).`;
     } else {
       textoOrientacao = `${FEDERACAO} orienta ${orientacaoNegrito} ${regra.rotuloFase}.`;
     }
   } else {
     // Caso "ANÁLISE TÉCNICA"
-    const sufixoDestaque =
-      fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA"
-        ? identificadorDestaque && identificadorDestaque.trim()
+    if (fase === "DESTAQUE_EMENDA" && destaque && identificadorDestaque && identificadorDestaque.trim()) {
+      // Para destaque de emenda com análise técnica
+      const numeroEmenda = destaque.numero || "?";
+      const apresentante = destaque.apresentante ? ` – ${destaque.apresentante}` : "";
+      const dtqInfo = sanitizarTexto(identificadorDestaque);
+      textoOrientacao = `${FEDERACAO} – orientação à Emenda de Plenário nº ${numeroEmenda} (${dtqInfo}${apresentante}) depende de *análise técnica*.`;
+    } else if (fase === "DESTAQUE_TEXTO" && identificadorDestaque && identificadorDestaque.trim()) {
+      const dtqInfo = sanitizarTexto(identificadorDestaque);
+      textoOrientacao = `${FEDERACAO} – orientação ao destaque para votação em separado (${dtqInfo}) depende de *análise técnica*.`;
+    } else {
+      const sufixoDestaque =
+        (fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA") &&
+        identificadorDestaque &&
+        identificadorDestaque.trim()
           ? ` (${sanitizarTexto(identificadorDestaque)})`
-          : ""
-        : "";
-    textoOrientacao = `${FEDERACAO} – orientação ${regra.rotuloFase}${sufixoDestaque} depende de *análise técnica*.`;
+          : "";
+      textoOrientacao = `${FEDERACAO} – orientação ${regra.rotuloFase}${sufixoDestaque} depende de *análise técnica*.`;
+    }
   }
   linhas.push(textoOrientacao);
 
