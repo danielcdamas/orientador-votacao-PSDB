@@ -277,6 +277,19 @@ function mapearProposicao(d: {
   };
 }
 
+// Siglas que indicam que o item da pauta é um PARECER sendo votado.
+// Nesses casos, a proposição "real" (MPV, PL, PEC, etc.) está em
+// proposicaoRelacionada_, e não em proposicao_.
+// Armadilha 9 do Guia da API.
+const SIGLAS_PARECER = new Set([
+  "PAR",   // Parecer de Comissão Mista (típico de MPV)
+  "PPP",   // Parecer Proferido em Plenário
+  "PEP",   // Parecer às Emendas de Plenário
+  "PRLP",  // Parecer Preliminar de Plenário
+  "PRLE",  // Parecer Preliminar às Emendas de Plenário
+  "PRL",   // Parecer de Relator (genérico)
+]);
+
 export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   const hoje = hojeISO();
   const PLENARIO_ID = 180;
@@ -312,17 +325,22 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
 
   const eventosLimitados = eventos.dados.slice(0, 2);
 
+  type ProposicaoPauta = {
+    id: number;
+    siglaTipo: string;
+    codTipo?: number;
+    numero: number;
+    ano: number;
+    ementa?: string;
+    ementaDetalhada?: string;
+    descricaoTipo?: string;
+  };
+
   type PautaResp = {
     dados: Array<{
       ordem: number;
-      proposicao_?: {
-        id: number;
-        siglaTipo: string;
-        codTipo: number;
-        numero: number;
-        ano: number;
-        ementa: string;
-      };
+      proposicao_?: ProposicaoPauta;
+      proposicaoRelacionada_?: ProposicaoPauta;
     }>;
   };
 
@@ -333,10 +351,43 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
       const pauta = await fetchJson<PautaResp>(`${BASE_URL}/eventos/${evento.id}/pauta`);
 
       for (const item of pauta.dados || []) {
-        const p = item.proposicao_;
-        if (!p) continue;
-        if (todasProposicoes.some((x) => x.id === p.id)) continue;
-        todasProposicoes.push(mapearProposicao(p));
+        const proposicaoDireta = item.proposicao_;
+        if (!proposicaoDireta) continue;
+
+        // Se o item da pauta é um parecer (PAR, PPP, PEP, PRLP, PRLE),
+        // a proposição real está em proposicaoRelacionada_.
+        const siglaDireta = String(proposicaoDireta.siglaTipo || "").toUpperCase();
+        const ehParecer = SIGLAS_PARECER.has(siglaDireta);
+        const relacionada = item.proposicaoRelacionada_;
+
+        let proposicaoReal: ProposicaoPauta = proposicaoDireta;
+
+        if (ehParecer && relacionada && relacionada.id) {
+          // Usa a proposição relacionada como base.
+          proposicaoReal = relacionada;
+
+          // proposicaoRelacionada_ frequentemente vem sem ementa.
+          // Busca o detalhe completo para ter ementa e ementaDetalhada.
+          if (!relacionada.ementa) {
+            try {
+              const detalhada = await buscarProposicao(relacionada.id);
+              proposicaoReal = {
+                id: detalhada.id,
+                siglaTipo: detalhada.siglaTipo,
+                numero: detalhada.numero,
+                ano: detalhada.ano,
+                ementa: detalhada.ementa,
+                ementaDetalhada: detalhada.ementaDetalhada,
+                descricaoTipo: detalhada.descricaoTipo,
+              };
+            } catch {
+              // Se a busca detalhada falhar, segue com o que veio em proposicaoRelacionada_.
+            }
+          }
+        }
+
+        if (todasProposicoes.some((x) => x.id === proposicaoReal.id)) continue;
+        todasProposicoes.push(mapearProposicao(proposicaoReal));
       }
     } catch {
       continue;
