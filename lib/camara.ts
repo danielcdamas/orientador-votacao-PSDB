@@ -153,12 +153,24 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
         // Evitar duplicatas
         if (todasProposicoes.some((x) => x.id === p.id)) continue;
 
+        // Buscar os detalhes completos da proposição para garantir ementa correta
+        let ementaFinal = p.ementa || "(Sem ementa cadastrada.)";
+        try {
+          const detalhes = await buscarProposicao(p.id);
+          // Usar a ementa dos detalhes da proposição, que é mais confiável
+          if (detalhes.ementa && detalhes.ementa !== "Parecer proferido") {
+            ementaFinal = detalhes.ementa;
+          }
+        } catch {
+          // Se falhar ao buscar detalhes, usa a ementa que já temos
+        }
+
         todasProposicoes.push({
           id: p.id,
           siglaTipo: p.siglaTipo,
           numero: p.numero,
           ano: p.ano,
-          ementa: p.ementa || "(Sem ementa cadastrada.)",
+          ementa: ementaFinal,
           identificador: formatarIdentificador(p),
         });
       }
