@@ -1,41 +1,24 @@
 "use client";
 
+import Image from "next/image";
+
 export function Header() {
   return (
     <header className="sticky top-0 z-30 bg-psdb-blue text-white shadow-md">
       <div className="mx-auto max-w-2xl px-4 py-3 flex items-center gap-3">
-        {/* Logo PSDB inline (SVG simples para não depender de imagem externa) */}
+        {/* Logo PSDB */}
         <div
-          className="h-11 w-11 rounded-full bg-white flex items-center justify-center shadow"
+          className="h-11 w-11 rounded-full bg-white flex items-center justify-center shadow flex-shrink-0"
           aria-label="Logo PSDB"
         >
-          <svg
-            viewBox="0 0 64 64"
-            xmlns="http://www.w3.org/2000/svg"
+          <Image
+            src="/logo-psdb.svg"
+            alt="Logo PSDB"
+            width={40}
+            height={40}
             className="h-9 w-9"
-            aria-hidden="true"
-          >
-            <circle cx="32" cy="32" r="30" fill="#0066B3" />
-            <path
-              d="M14 22 L32 12 L50 22 L50 42 L32 52 L14 42 Z"
-              fill="#FFCC00"
-              stroke="#003D7A"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-            />
-            <text
-              x="32"
-              y="38"
-              textAnchor="middle"
-              fontFamily="Arial, sans-serif"
-              fontWeight="900"
-              fontSize="14"
-              fill="#003D7A"
-              letterSpacing="0.5"
-            >
-              PSDB
-            </text>
-          </svg>
+            priority
+          />
         </div>
 
         <div className="flex flex-col leading-tight">
