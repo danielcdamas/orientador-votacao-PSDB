@@ -27,6 +27,7 @@ export default function HomePage() {
 
   const [destaques, setDestaques] = useState<Destaque[]>([]);
   const [carregandoDestaques, setCarregandoDestaques] = useState(false);
+  const [destaquesSelecionado, setDestaquesSelecionado] = useState<Destaque | null>(null);
 
   const [mensagemGerada, setMensagemGerada] = useState<string>("");
   const [editouMensagem, setEditouMensagem] = useState(false);
@@ -111,6 +112,7 @@ export default function HomePage() {
         fase,
         justificativa,
         identificadorDestaque,
+        destaque: destaquesSelecionado,
       });
       setMensagemGerada(texto);
     } catch {
@@ -123,6 +125,7 @@ export default function HomePage() {
     fase,
     justificativa,
     identificadorDestaque,
+    destaquesSelecionado,
     editouMensagem,
   ]);
 
@@ -135,6 +138,7 @@ export default function HomePage() {
       fase,
       justificativa,
       identificadorDestaque,
+      destaque: destaquesSelecionado,
     });
     setMensagemGerada(texto);
     // rola até o preview (UX mobile)
@@ -153,12 +157,14 @@ export default function HomePage() {
   function handleSelecionarDestaque(destaqueId: number | null) {
     if (!destaqueId) {
       setIdentificadorDestaque("");
+      setDestaquesSelecionado(null);
       return;
     }
 
     const destaque = destaques.find((d) => d.id === destaqueId);
     if (destaque) {
       setIdentificadorDestaque(destaque.identificador);
+      setDestaquesSelecionado(destaque);
       setEditouMensagem(false);
     }
   }
@@ -168,6 +174,7 @@ export default function HomePage() {
     setPosicao(null);
     setFase(null);
     setIdentificadorDestaque("");
+    setDestaquesSelecionado(null);
     setJustificativa("");
     setMensagemGerada("");
     setEditouMensagem(false);

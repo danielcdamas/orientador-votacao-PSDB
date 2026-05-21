@@ -309,6 +309,41 @@ export async function buscarProposicao(id: number): Promise<Proposicao> {
   };
 }
 
+function extrairNumeroDtq(...textos: Array<string | undefined>): number | undefined {
+  const texto = textos.filter(Boolean).join(" ");
+  const padroes = [
+    /DTQ\s*(?:n\.?\s*)?(\d+)\s*=>/i,
+    /DTQ\s*n[ºo.]?\s*(\d+)\b/i,
+    /DTQ\s*(\d+)\b/i,
+  ];
+
+  for (const padrao of padroes) {
+    const match = texto.match(padrao);
+    if (match?.[1]) return Number(match[1]);
+  }
+
+  return undefined;
+}
+
+function extrairTipoDestaque(ementa?: string): string | undefined {
+  if (!ementa) return undefined;
+
+  const tipos = [
+    { regex: /novo/i, tipo: "NOVO" },
+    { regex: /supressivo/i, tipo: "SUPRESSIVO" },
+    { regex: /substitutivo/i, tipo: "SUBSTITUTIVO" },
+    { regex: /aditivo/i, tipo: "ADITIVO" },
+  ];
+
+  for (const { regex, tipo } of tipos) {
+    if (regex.test(ementa)) {
+      return tipo;
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Busca destaques textuais (DTQ) de uma proposição.
  * Retorna uma lista vazia se não houver destaques.
@@ -334,14 +369,19 @@ export async function buscarDestaques(id: number): Promise<Destaque[]> {
     );
 
     return destaques.map((d) => {
-      const numero = d.numero ? ` ${d.numero}` : "";
-      const ano = d.ano ? `/${d.ano}` : "";
-      const identificador = `${d.siglaTipo}${numero}${ano}`.trim();
+      // Extrai o número correto do destaque da ementa
+      const numeroDtq = extrairNumeroDtq(d.ementa) || d.numero;
+      // Extrai o tipo (NOVO, SUPRESSIVO, etc)
+      const tipo = extrairTipoDestaque(d.ementa);
+
+      // Constrói o identificador: "DTQ 1 (NOVO)" ou apenas "DTQ 1"
+      const tipoSufixo = tipo ? ` (${tipo})` : "";
+      const identificador = `DTQ ${numeroDtq}${tipoSufixo}`;
 
       return {
         id: d.id,
         siglaTipo: d.siglaTipo,
-        numero: d.numero,
+        numero: numeroDtq,
         ano: d.ano,
         identificador,
         ementa: d.ementa || "(Sem descrição)",
