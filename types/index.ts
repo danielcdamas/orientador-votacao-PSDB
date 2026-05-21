@@ -50,6 +50,21 @@ export interface Parecer {
   ementa?: string;
 }
 
+/** Destaque Textual (DTQ) */
+export interface Destaque {
+  id: number;
+  siglaTipo: string;
+  numero?: number;
+  ano?: number;
+  identificador: string;
+  ementa?: string;
+  descricao?: string;
+  autor?: string;
+  partidoAutor?: string;
+  apresentante?: string;
+  urlInteiroTeor?: string;
+}
+
 /** Resposta padrão da API interna */
 export interface ApiResponse<T> {
   ok: boolean;

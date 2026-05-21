@@ -2,7 +2,7 @@
 // Cliente da API de Dados Abertos da Câmara dos Deputados
 // Documentação oficial: https://dadosabertos.camara.leg.br/swagger/api.html
 // =========================================================
-import type { Proposicao, Parecer } from "@/types";
+import type { Proposicao, Parecer, Destaque } from "@/types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_CAMARA_API_BASE ||
@@ -307,6 +307,49 @@ export async function buscarProposicao(id: number): Promise<Proposicao> {
     urlInteiroTeor: d.urlInteiroTeor,
     statusProposicao: d.statusProposicao,
   };
+}
+
+/**
+ * Busca destaques textuais (DTQ) de uma proposição.
+ * Retorna uma lista vazia se não houver destaques.
+ */
+export async function buscarDestaques(id: number): Promise<Destaque[]> {
+  const url = `${BASE_URL}/proposicoes/${id}/relacionadas`;
+
+  type Resp = {
+    dados: Array<{
+      id: number;
+      siglaTipo: string;
+      numero?: number;
+      ano?: number;
+      ementa?: string;
+    }>;
+  };
+
+  try {
+    const resp = await fetchJson<Resp>(url);
+    // Filtra apenas DTQs (Destaques Textuais)
+    const destaques = (resp.dados || []).filter((p) =>
+      String(p.siglaTipo || "").toUpperCase().startsWith("DTQ")
+    );
+
+    return destaques.map((d) => {
+      const numero = d.numero ? ` ${d.numero}` : "";
+      const ano = d.ano ? `/${d.ano}` : "";
+      const identificador = `${d.siglaTipo}${numero}${ano}`.trim();
+
+      return {
+        id: d.id,
+        siglaTipo: d.siglaTipo,
+        numero: d.numero,
+        ano: d.ano,
+        identificador,
+        ementa: d.ementa || "(Sem descrição)",
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 /**
