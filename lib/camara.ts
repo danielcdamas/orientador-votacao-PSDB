@@ -158,7 +158,8 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
         try {
           const detalhes = await buscarProposicao(p.id);
           // Usar a ementa dos detalhes da proposição, que é mais confiável
-          if (detalhes.ementa && detalhes.ementa !== "Parecer proferido") {
+          // Ignora ementas que parecem ser do parecer (começam com "Parecer")
+          if (detalhes.ementa && !detalhes.ementa.trim().startsWith("Parecer")) {
             ementaFinal = detalhes.ementa;
           }
         } catch {
