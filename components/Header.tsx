@@ -7,16 +7,13 @@ export function Header() {
     <header className="sticky top-0 z-30 bg-psdb-blue text-white shadow-md">
       <div className="mx-auto max-w-2xl px-4 py-3 flex items-center gap-3">
         {/* Logo PSDB */}
-        <div
-          className="h-11 w-11 rounded-full bg-white flex items-center justify-center shadow flex-shrink-0"
-          aria-label="Logo PSDB"
-        >
+        <div className="flex-shrink-0 bg-white rounded-lg px-2 py-1 shadow">
           <Image
-            src="/logo-psdb.svg"
+            src="/logo-psdb.jpg"
             alt="Logo PSDB"
-            width={40}
-            height={40}
-            className="h-9 w-9"
+            width={80}
+            height={44}
+            className="h-9 w-auto object-contain"
             priority
           />
         </div>
