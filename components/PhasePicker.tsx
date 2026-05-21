@@ -109,7 +109,7 @@ export function PhasePicker({
                 }`}
               >
                 <span className="font-bold text-sm text-green-800">SIM</span>
-                <span className="block text-[11px] text-slate-500">ao destaque</span>
+                <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
               </button>
 
               <button
@@ -123,7 +123,7 @@ export function PhasePicker({
                 }`}
               >
                 <span className="font-bold text-sm text-red-800">NÃO</span>
-                <span className="block text-[11px] text-slate-500">ao destaque</span>
+                <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
               </button>
             </div>
           </div>
