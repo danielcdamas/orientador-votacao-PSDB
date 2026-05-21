@@ -76,6 +76,17 @@ function hojeISO(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Siglas que indicam que o item da pauta é um PARECER sendo votado.
+// Nesses casos, a proposição "real" está em proposicaoRelacionada_, não em proposicao_.
+const SIGLAS_PARECER = new Set([
+  "PAR",   // Parecer de Comissão Mista
+  "PPP",   // Parecer Proferido em Plenário
+  "PEP",   // Parecer às Emendas de Plenário
+  "PRLP",  // Parecer Preliminar de Plenário
+  "PRLE",  // Parecer Preliminar às Emendas de Plenário
+  "PRL",   // Parecer de Relator
+]);
+
 /**
  * Busca a pauta do Plenário do dia.
  *
@@ -83,6 +94,9 @@ function hojeISO(): string {
  * 1) Tenta buscar eventos do Plenário hoje via /eventos
  * 2) Para cada evento, pega as proposições pautadas via /eventos/{id}/pauta
  * 3) Se não houver evento hoje, tenta o evento mais recente do Plenário.
+ *
+ * Nota especial: itens de parecer (PAR, PPP, etc) trazem a proposição real
+ * em proposicaoRelacionada_, não em proposicao_.
  */
 export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   const hoje = hojeISO();
@@ -126,17 +140,20 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   // 2) Para cada evento, buscar pauta. Pegamos só os 2 mais recentes para não estourar.
   const eventosLimitados = eventos.dados.slice(0, 2);
 
+  type ProposicaoPauta = {
+    id: number;
+    siglaTipo: string;
+    codTipo?: number;
+    numero: number;
+    ano: number;
+    ementa?: string;
+  };
+
   type PautaResp = {
     dados: Array<{
       ordem: number;
-      proposicao_?: {
-        id: number;
-        siglaTipo: string;
-        codTipo: number;
-        numero: number;
-        ano: number;
-        ementa: string;
-      };
+      proposicao_?: ProposicaoPauta;
+      proposicaoRelacionada_?: ProposicaoPauta;
     }>;
   };
 
@@ -148,31 +165,46 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
       const pauta = await fetchJson<PautaResp>(urlPauta);
 
       for (const item of pauta.dados || []) {
-        const p = item.proposicao_;
-        if (!p) continue;
-        // Evitar duplicatas
-        if (todasProposicoes.some((x) => x.id === p.id)) continue;
+        const proposicaoDireta = item.proposicao_;
+        if (!proposicaoDireta) continue;
 
-        // Buscar os detalhes completos da proposição para garantir ementa correta
-        let ementaFinal = p.ementa || "(Sem ementa cadastrada.)";
-        try {
-          const detalhes = await buscarProposicao(p.id);
-          // Usar a ementa dos detalhes da proposição, que é mais confiável
-          // Ignora ementas que parecem ser do parecer (começam com "Parecer")
-          if (detalhes.ementa && !detalhes.ementa.trim().startsWith("Parecer")) {
-            ementaFinal = detalhes.ementa;
+        // Se o item é um parecer, a proposição real está em proposicaoRelacionada_
+        const siglaDireta = String(proposicaoDireta.siglaTipo || "").toUpperCase();
+        const ehParecer = SIGLAS_PARECER.has(siglaDireta);
+        const relacionada = item.proposicaoRelacionada_;
+
+        let proposicaoReal = proposicaoDireta;
+
+        if (ehParecer && relacionada && relacionada.id) {
+          proposicaoReal = relacionada;
+
+          // Se a proposição relacionada não tem ementa, busca detalhes
+          if (!relacionada.ementa) {
+            try {
+              const detalhes = await buscarProposicao(relacionada.id);
+              proposicaoReal = {
+                id: detalhes.id,
+                siglaTipo: detalhes.siglaTipo,
+                numero: detalhes.numero,
+                ano: detalhes.ano,
+                ementa: detalhes.ementa,
+              };
+            } catch {
+              // Se falhar, mantém o que temos de proposicaoRelacionada_
+            }
           }
-        } catch {
-          // Se falhar ao buscar detalhes, usa a ementa que já temos
         }
 
+        // Evitar duplicatas
+        if (todasProposicoes.some((x) => x.id === proposicaoReal.id)) continue;
+
         todasProposicoes.push({
-          id: p.id,
-          siglaTipo: p.siglaTipo,
-          numero: p.numero,
-          ano: p.ano,
-          ementa: ementaFinal,
-          identificador: formatarIdentificador(p),
+          id: proposicaoReal.id,
+          siglaTipo: proposicaoReal.siglaTipo,
+          numero: proposicaoReal.numero,
+          ano: proposicaoReal.ano,
+          ementa: proposicaoReal.ementa || "(Sem ementa cadastrada.)",
+          identificador: formatarIdentificador(proposicaoReal),
         });
       }
     } catch {
