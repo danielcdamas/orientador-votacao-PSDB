@@ -1,7 +1,7 @@
 "use client";
 
 import type { Proposicao } from "@/types";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 
 interface PropSelectorProps {
   proposicoes: Proposicao[];
@@ -18,8 +18,70 @@ export function PropSelector({
 }: PropSelectorProps) {
   const [busca, setBusca] = useState("");
   const [modoBusca, setModoBusca] = useState<"pauta" | "manual">("pauta");
+  const [resultadosBusca, setResultadosBusca] = useState<Proposicao[]>([]);
+  const [carregandoBusca, setCarregandoBusca] = useState(false);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
+
+  // Busca livre quando está no modo manual
+  const fazerBuscaLivre = useCallback(
+    async (termo: string) => {
+      if (termo.trim().length < 2) {
+        setResultadosBusca([]);
+        setErroBusca(null);
+        return;
+      }
+
+      setCarregandoBusca(true);
+      setErroBusca(null);
+      try {
+        const res = await fetch(`/api/proposicoes/pauta?q=${encodeURIComponent(termo)}`);
+        const json = await res.json();
+        if (json.ok) {
+          setResultadosBusca(json.data || []);
+          if (json.message) {
+            setErroBusca(json.message);
+          }
+        } else {
+          setErroBusca(json.error || "Erro na busca");
+          setResultadosBusca([]);
+        }
+      } catch (err) {
+        setErroBusca(
+          err instanceof Error ? err.message : "Erro ao buscar proposições"
+        );
+        setResultadosBusca([]);
+      } finally {
+        setCarregandoBusca(false);
+      }
+    },
+    []
+  );
+
+  // Debounce da busca (espera 500ms após parar de digitar)
+  useEffect(() => {
+    if (modoBusca === "manual") {
+      const timer = setTimeout(() => {
+        fazerBuscaLivre(busca);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [busca, modoBusca, fazerBuscaLivre]);
+
+  // Limpa resultados quando muda de modo
+  const handleModoChange = (novo: "pauta" | "manual") => {
+    setModoBusca(novo);
+    if (novo === "pauta") {
+      setResultadosBusca([]);
+      setErroBusca(null);
+      setBusca("");
+    }
+  };
 
   const filtradas = useMemo(() => {
+    if (modoBusca === "manual") {
+      return resultadosBusca;
+    }
+
     if (!busca.trim()) return proposicoes;
     const termo = busca.toLowerCase().trim();
     return proposicoes.filter(
@@ -27,7 +89,7 @@ export function PropSelector({
         p.identificador.toLowerCase().includes(termo) ||
         p.ementa.toLowerCase().includes(termo)
     );
-  }, [busca, proposicoes]);
+  }, [busca, proposicoes, modoBusca, resultadosBusca]);
 
   const selecionada = proposicoes.find((p) => p.id === selectedId) || null;
 
@@ -63,7 +125,7 @@ export function PropSelector({
       <div className="flex gap-1 mb-3 rounded-xl bg-slate-100 p-1">
         <button
           type="button"
-          onClick={() => setModoBusca("pauta")}
+          onClick={() => handleModoChange("pauta")}
           className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
             modoBusca === "pauta"
               ? "bg-white text-psdb-darkblue shadow-sm"
@@ -74,7 +136,7 @@ export function PropSelector({
         </button>
         <button
           type="button"
-          onClick={() => setModoBusca("manual")}
+          onClick={() => handleModoChange("manual")}
           className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
             modoBusca === "manual"
               ? "bg-white text-psdb-darkblue shadow-sm"
@@ -86,23 +148,43 @@ export function PropSelector({
       </div>
 
       {/* Busca */}
-      <input
-        type="text"
-        placeholder="Digite tipo, número/ano ou palavra-chave..."
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        className="input-base mb-3"
-        inputMode="search"
-        aria-label="Buscar proposição"
-      />
+      <div className="relative mb-3">
+        <input
+          type="text"
+          placeholder={
+            modoBusca === "manual"
+              ? "Digite PL 1234/2023 ou palavra-chave..."
+              : "Filtrar pauta..."
+          }
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          className="input-base w-full"
+          inputMode="search"
+          aria-label="Buscar proposição"
+        />
+        {modoBusca === "manual" && carregandoBusca && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-psdb-blue border-t-transparent" />
+          </div>
+        )}
+      </div>
+
+      {/* Mensagem de erro ou aviso */}
+      {erroBusca && modoBusca === "manual" && (
+        <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+          {erroBusca}
+        </div>
+      )}
 
       {/* Lista */}
       <div className="max-h-72 overflow-y-auto pr-1 -mr-1 space-y-2">
         {filtradas.length === 0 && (
           <div className="text-sm text-slate-500 py-6 text-center">
-            {busca
+            {modoBusca === "manual" && busca
               ? "Nenhuma proposição encontrada com este termo."
-              : "Nenhuma proposição na pauta."}
+              : modoBusca === "manual"
+                ? "Comece a digitar para buscar..."
+                : "Nenhuma proposição na pauta."}
           </div>
         )}
 

@@ -217,6 +217,65 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
 }
 
 /**
+ * Busca proposições por termo (busca livre).
+ * Pode ser por sigla/número/ano (PL 1234/2023) ou keywords.
+ */
+export async function buscarProposicoes(termo: string): Promise<Proposicao[]> {
+  if (!termo || termo.trim().length < 2) {
+    return [];
+  }
+
+  const url = new URL(`${BASE_URL}/proposicoes`);
+  url.searchParams.set("ordem", "DESC");
+  url.searchParams.set("ordenarPor", "ano");
+  url.searchParams.set("itens", "15");
+
+  // Tenta parsear como identificador (PL 699/2023)
+  const match = termo.trim().match(/^([A-Za-z]{2,8})\s*[- ]?\s*(\d+)\s*[\/ ]?\s*(\d{4})?$/);
+
+  if (match) {
+    url.searchParams.set("siglaTipo", match[1].toUpperCase());
+    url.searchParams.set("numero", match[2]);
+    if (match[3]) {
+      url.searchParams.set("ano", match[3]);
+    }
+  } else {
+    // Busca por keywords
+    url.searchParams.set("keywords", termo.trim());
+  }
+
+  try {
+    type RespBusca = {
+      dados: Array<{
+        id: number;
+        siglaTipo: string;
+        numero: number;
+        ano: number;
+        ementa?: string;
+        descricaoTipo?: string;
+        urlInteiroTeor?: string;
+        statusProposicao?: Proposicao["statusProposicao"];
+      }>;
+    };
+
+    const resp = await fetchJson<RespBusca>(url.toString());
+    return (resp.dados || []).map((d) => ({
+      id: d.id,
+      siglaTipo: d.siglaTipo,
+      numero: d.numero,
+      ano: d.ano,
+      ementa: d.ementa || "(Sem ementa cadastrada.)",
+      identificador: formatarIdentificador(d),
+      descricaoTipo: d.descricaoTipo,
+      urlInteiroTeor: d.urlInteiroTeor,
+      statusProposicao: d.statusProposicao,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Busca detalhes completos de uma proposição.
  */
 export async function buscarProposicao(id: number): Promise<Proposicao> {
