@@ -296,6 +296,7 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
 
   const urlEventos = new URL(`${BASE_URL}/eventos`);
   urlEventos.searchParams.set("idOrgao", String(PLENARIO_ID));
+  urlEventos.searchParams.set("codTipoEvento", "110"); // 110 = Sessão Deliberativa (ignora homenagens/solenes)
   urlEventos.searchParams.set("dataInicio", hoje);
   urlEventos.searchParams.set("dataFim", hoje);
   urlEventos.searchParams.set("ordem", "ASC");
@@ -313,6 +314,7 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
 
     const urlFallback = new URL(`${BASE_URL}/eventos`);
     urlFallback.searchParams.set("idOrgao", String(PLENARIO_ID));
+    urlFallback.searchParams.set("codTipoEvento", "110"); // 110 = Sessão Deliberativa
     urlFallback.searchParams.set("dataInicio", dataInicio);
     urlFallback.searchParams.set("dataFim", hoje);
     urlFallback.searchParams.set("ordem", "DESC");
