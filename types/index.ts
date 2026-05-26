@@ -2,8 +2,11 @@
 // Tipos compartilhados do app
 // =========================================================
 
-/** Posição do partido na votação */
+/** Posição do partido em relação à matéria */
 export type Posicao = "A_FAVOR" | "CONTRA";
+
+/** Orientação específica para um destaque */
+export type OrientacaoDestaque = "SIM" | "NAO";
 
 /** Fase da votação */
 export type Fase =
@@ -28,6 +31,8 @@ export interface Proposicao {
   identificador: string;
   /** Resumo curto (opcional, vindo de campos auxiliares) */
   descricaoTipo?: string;
+  /** Texto mais completo, quando a API disponibilizar */
+  ementaDetalhada?: string;
   /** Link para o inteiro teor (quando disponível) */
   urlInteiroTeor?: string;
   /** Status atual (quando disponível) */
@@ -37,6 +42,24 @@ export interface Proposicao {
     despacho?: string;
     dataHora?: string;
   };
+}
+
+/** Destaque apresentado à proposição */
+export interface Destaque {
+  id: number;
+  siglaTipo: string;
+  numero?: number;
+  ano?: number;
+  identificador: string;
+  ementa?: string;
+  ementaDetalhada?: string;
+  descricao?: string;
+  /** Pessoa que assinou/apresentou formalmente o destaque */
+  autor?: string;
+  partidoAutor?: string;
+  /** Partido, Federação ou Bloco Parlamentar em nome do qual o destaque foi apresentado */
+  apresentante?: string;
+  urlInteiroTeor?: string;
 }
 
 /** Último parecer do relator */
@@ -66,4 +89,8 @@ export interface DadosMensagem {
   justificativa?: string;
   /** Texto do destaque (DTQ X - NOVO/SUPRESSIVO/etc), opcional */
   identificadorDestaque?: string;
+  /** Destaque selecionado a partir da API da Câmara */
+  destaqueSelecionado?: Destaque | null;
+  /** Orientação definida pelo usuário para o destaque */
+  orientacaoDestaque?: OrientacaoDestaque | null;
 }

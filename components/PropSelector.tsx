@@ -1,6 +1,6 @@
 "use client";
 
-import type { Proposicao } from "@/types";
+import type { ApiResponse, Proposicao } from "@/types";
 import { useMemo, useState } from "react";
 
 interface PropSelectorProps {
@@ -18,8 +18,12 @@ export function PropSelector({
 }: PropSelectorProps) {
   const [busca, setBusca] = useState("");
   const [modoBusca, setModoBusca] = useState<"pauta" | "manual">("pauta");
+  const [resultadosBase, setResultadosBase] = useState<Proposicao[]>([]);
+  const [buscandoBase, setBuscandoBase] = useState(false);
+  const [erroBuscaBase, setErroBuscaBase] = useState<string | null>(null);
+  const [avisoBuscaBase, setAvisoBuscaBase] = useState<string | null>(null);
 
-  const filtradas = useMemo(() => {
+  const filtradasPauta = useMemo(() => {
     if (!busca.trim()) return proposicoes;
     const termo = busca.toLowerCase().trim();
     return proposicoes.filter(
@@ -29,13 +33,51 @@ export function PropSelector({
     );
   }, [busca, proposicoes]);
 
-  const selecionada = proposicoes.find((p) => p.id === selectedId) || null;
+  const listaExibida = modoBusca === "pauta" ? filtradasPauta : resultadosBase;
+  const selecionada =
+    proposicoes.find((p) => p.id === selectedId) ||
+    resultadosBase.find((p) => p.id === selectedId) ||
+    null;
+
+  async function buscarNaBase() {
+    const termo = busca.trim();
+    if (termo.length < 2) {
+      setAvisoBuscaBase("Digite ao menos 2 caracteres. Ex.: PL 1625/2026.");
+      return;
+    }
+
+    setBuscandoBase(true);
+    setErroBuscaBase(null);
+    setAvisoBuscaBase(null);
+
+    try {
+      const res = await fetch(
+        `/api/proposicoes/pauta?q=${encodeURIComponent(termo)}`,
+        { cache: "no-store" }
+      );
+      const json: ApiResponse<Proposicao[]> = await res.json();
+      if (!json.ok) {
+        setErroBuscaBase(json.error || "Não foi possível buscar na base da Câmara.");
+        setResultadosBase([]);
+        return;
+      }
+      setResultadosBase(json.data || []);
+      if (json.message) setAvisoBuscaBase(json.message);
+    } catch (err: unknown) {
+      setErroBuscaBase(
+        err instanceof Error ? err.message : "Erro ao consultar a base da Câmara."
+      );
+      setResultadosBase([]);
+    } finally {
+      setBuscandoBase(false);
+    }
+  }
 
   return (
     <div className="card animate-slide-up">
       <div className="flex items-center justify-between mb-3">
         <label className="label !mb-0">1. Proposição</label>
-        {onRefresh && (
+        {onRefresh && modoBusca === "pauta" && (
           <button
             type="button"
             onClick={onRefresh}
@@ -59,7 +101,6 @@ export function PropSelector({
         )}
       </div>
 
-      {/* Tabs Pauta/Manual */}
       <div className="flex gap-1 mb-3 rounded-xl bg-slate-100 p-1">
         <button
           type="button"
@@ -81,32 +122,69 @@ export function PropSelector({
               : "text-slate-600"
           }`}
         >
-          Buscar
+          Buscar na Câmara
         </button>
       </div>
 
-      {/* Busca */}
-      <input
-        type="text"
-        placeholder="Digite tipo, número/ano ou palavra-chave..."
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        className="input-base mb-3"
-        inputMode="search"
-        aria-label="Buscar proposição"
-      />
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <input
+          type="text"
+          placeholder={
+            modoBusca === "manual"
+              ? "Ex.: PL 1625/2026, REQ 2973/2026..."
+              : "Filtrar pauta por tipo, número/ano ou palavra-chave..."
+          }
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          onKeyDown={(e) => {
+            if (modoBusca === "manual" && e.key === "Enter") buscarNaBase();
+          }}
+          className="input-base"
+          inputMode="search"
+          aria-label="Buscar proposição"
+        />
+        {modoBusca === "manual" && (
+          <button
+            type="button"
+            onClick={buscarNaBase}
+            disabled={buscandoBase}
+            className="btn-primary whitespace-nowrap"
+          >
+            {buscandoBase ? "Buscando..." : "Buscar"}
+          </button>
+        )}
+      </div>
 
-      {/* Lista */}
+      {modoBusca === "manual" && (
+        <div className="mb-3 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-[12px] text-slate-700">
+          Use esta busca quando um projeto entrar de última hora ou não aparecer na pauta carregada.
+        </div>
+      )}
+
+      {erroBuscaBase && (
+        <div className="mb-3 rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-[12px] text-red-800">
+          {erroBuscaBase}
+        </div>
+      )}
+
+      {avisoBuscaBase && !erroBuscaBase && (
+        <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-900">
+          {avisoBuscaBase}
+        </div>
+      )}
+
       <div className="max-h-72 overflow-y-auto pr-1 -mr-1 space-y-2">
-        {filtradas.length === 0 && (
+        {listaExibida.length === 0 && (
           <div className="text-sm text-slate-500 py-6 text-center">
-            {busca
-              ? "Nenhuma proposição encontrada com este termo."
-              : "Nenhuma proposição na pauta."}
+            {modoBusca === "manual"
+              ? "Digite uma proposição e clique em Buscar."
+              : busca
+                ? "Nenhuma proposição encontrada com este termo na pauta."
+                : "Nenhuma proposição na pauta."}
           </div>
         )}
 
-        {filtradas.map((p) => {
+        {listaExibida.map((p) => {
           const ativa = p.id === selectedId;
           return (
             <button
@@ -136,7 +214,6 @@ export function PropSelector({
         })}
       </div>
 
-      {/* Selecionada */}
       {selecionada && (
         <div className="mt-3 rounded-xl bg-psdb-lightblue/60 p-3 border border-psdb-blue/20">
           <div className="text-[10px] uppercase tracking-wider text-psdb-darkblue/70 font-semibold mb-1">
