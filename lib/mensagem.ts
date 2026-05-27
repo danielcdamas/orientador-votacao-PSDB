@@ -159,8 +159,18 @@ export function gerarMensagem(dados: DadosMensagem): string {
   linhas.push("*VOTAÇÃO NOMINAL*");
   linhas.push("");
 
-  const ementa = adaptarEmenta(proposicao);
-  linhas.push(`${proposicao.identificador} – ${ementa}`);
+  // Pendência 1: se for um requerimento (REQ) sobre outra proposição,
+  // o texto do WhatsApp mostra a proposição-alvo (ex.: o PLP), não o REQ.
+  const alvo = proposicao.proposicaoAlvo;
+  if (alvo) {
+    const ementaAlvo = resumirEmenta(
+      (alvo.ementa || "(Ementa não disponível.)").trim().replace(/\s+/g, " ")
+    );
+    linhas.push(`${alvo.identificador} – ${ementaAlvo}`);
+  } else {
+    const ementa = adaptarEmenta(proposicao);
+    linhas.push(`${proposicao.identificador} – ${ementa}`);
+  }
   linhas.push("");
 
   const ehDestaque = fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA";
