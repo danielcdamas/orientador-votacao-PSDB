@@ -347,6 +347,8 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   };
 
   const todasProposicoes: Proposicao[] = [];
+  const idsVistos = new Set<number>();
+  const identificadoresVistos = new Set<string>();
 
   for (const evento of eventosLimitados) {
     try {
@@ -388,8 +390,18 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
           }
         }
 
-        if (todasProposicoes.some((x) => x.id === proposicaoReal.id)) continue;
-        todasProposicoes.push(mapearProposicao(proposicaoReal));
+        const mapeada = mapearProposicao(proposicaoReal);
+
+        // Dedupe: ignora a proposição se já vimos o mesmo id OU o mesmo
+        // identificador (ex.: "PL 780/2023"). Evita a mesma proposição
+        // aparecer mais de uma vez quando a Câmara a inclui em itens de
+        // votação distintos (uriVotacao diferentes).
+        if (idsVistos.has(mapeada.id) || identificadoresVistos.has(mapeada.identificador)) {
+          continue;
+        }
+        idsVistos.add(mapeada.id);
+        identificadoresVistos.add(mapeada.identificador);
+        todasProposicoes.push(mapeada);
       }
     } catch {
       continue;
