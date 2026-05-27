@@ -401,6 +401,38 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
         }
         idsVistos.add(mapeada.id);
         identificadoresVistos.add(mapeada.identificador);
+
+        // Pendência 1: se o item da pauta é um REQUERIMENTO (REQ) sobre outra
+        // proposição (ex.: urgência de um PLP), a lista continua mostrando o REQ,
+        // mas guardamos a proposição-alvo para o texto do WhatsApp usar ela.
+        if (siglaDireta === "REQ" && relacionada && relacionada.id) {
+          let alvo: ProposicaoPauta = relacionada;
+          if (!alvo.ementa) {
+            try {
+              const detalheAlvo = await buscarProposicao(relacionada.id);
+              alvo = {
+                id: detalheAlvo.id,
+                siglaTipo: detalheAlvo.siglaTipo,
+                numero: detalheAlvo.numero,
+                ano: detalheAlvo.ano,
+                ementa: detalheAlvo.ementa,
+                ementaDetalhada: detalheAlvo.ementaDetalhada,
+                descricaoTipo: detalheAlvo.descricaoTipo,
+              };
+            } catch {
+              // Se falhar, segue com o resumo que veio em proposicaoRelacionada_.
+            }
+          }
+          mapeada.proposicaoAlvo = {
+            id: alvo.id,
+            siglaTipo: alvo.siglaTipo,
+            numero: alvo.numero,
+            ano: alvo.ano,
+            ementa: limparTexto(alvo.ementa) || "(Sem ementa cadastrada.)",
+            identificador: formatarIdentificador(alvo),
+          };
+        }
+
         todasProposicoes.push(mapeada);
       }
     } catch {
