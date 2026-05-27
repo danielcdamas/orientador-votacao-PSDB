@@ -36,11 +36,22 @@ export interface Proposicao {
   /** Link para o inteiro teor (quando disponível) */
   urlInteiroTeor?: string;
   /** Status atual (quando disponível) */
-  statusProposicao?: {
+statusProposicao?: {
     descricaoSituacao?: string;
     descricaoTramitacao?: string;
     despacho?: string;
     dataHora?: string;
+  };
+  /** Quando o item da pauta é um requerimento (REQ) sobre outra proposição
+   *  (ex.: urgência de um PLP), guarda a proposição-alvo. A lista mostra o REQ,
+   *  mas o texto do WhatsApp usa esta proposição-alvo. */
+  proposicaoAlvo?: {
+    id: number;
+    siglaTipo: string;
+    numero: number;
+    ano: number;
+    ementa: string;
+    identificador: string;
   };
 }
 
