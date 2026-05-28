@@ -248,6 +248,33 @@ export function gerarMensagem(dados: DadosMensagem): string {
 
   const ehDestaque = fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA";
 
+  // LIBERAR: trata antes de tudo, vale para qualquer fase.
+  if (posicao === "LIBERAR") {
+    const idDtq = ehDestaque
+      ? obterIdentificadorDestaque(destaqueSelecionado, identificadorDestaque)
+      : "";
+    const complemento = idDtq ? ` (${idDtq})` : "";
+
+    linhas.push(
+      `${FEDERACAO} orienta *LIBERA* ${rotuloLiberar(fase, proposicao)}${complemento}.`
+    );
+
+    if (ehDestaque) {
+      linhas.push("");
+      for (const linha of explicacaoVotoDestaque(fase)) {
+        linhas.push(linha);
+      }
+    }
+
+    const justLib = sanitizarTexto(justificativa || "");
+    if (justLib) {
+      linhas.push("");
+      linhas.push(justLib);
+    }
+
+    return linhas.join("\n").replace(/\n{3,}/g, "\n\n");
+  }
+
   if (ehDestaque) {
     const orientacao = orientacaoDestaque || (posicao === "A_FAVOR" ? "SIM" : "NAO");
     const orientacaoNegrito = formatarOrientacao(orientacao);
