@@ -51,6 +51,10 @@ export const FASES_DISPONIVEIS: Array<{ value: Fase; label: string }> = [
 export function aplicarRegra(posicao: Posicao, fase: Fase): ResultadoRegra {
   const rotuloFase = ROTULO_FASE[fase];
 
+  if (posicao === "LIBERAR") {
+    return { orientacao: "LIBERAR", exigeAnalise: false, rotuloFase };
+  }
+
   if (fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA") {
     return { orientacao: "ANALISE", exigeAnalise: true, rotuloFase };
   }

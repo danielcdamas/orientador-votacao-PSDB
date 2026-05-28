@@ -35,17 +35,24 @@ export function PhasePicker({
 
           let chip: React.ReactNode = null;
           if (posicao) {
-            const r = aplicarRegra(posicao, opt.value);
-            if (opt.value === "DESTAQUE_TEXTO" || opt.value === "DESTAQUE_EMENDA") {
+            if (posicao === "LIBERAR") {
+              chip = <span className="chip-yellow text-[10px]">LIBERA</span>;
+            } else if (
+              opt.value === "DESTAQUE_TEXTO" ||
+              opt.value === "DESTAQUE_EMENDA"
+            ) {
               chip = <span className="chip-yellow text-[10px]">definir DTQ</span>;
-            } else if (r.orientacao === "SIM") {
-              chip = <span className="chip-green text-[10px]">SIM</span>;
-            } else if (r.orientacao === "NAO") {
-              chip = <span className="chip-red text-[10px]">NÃO</span>;
             } else {
-              chip = (
-                <span className="chip-yellow text-[10px]">análise técnica</span>
-              );
+              const r = aplicarRegra(posicao, opt.value);
+              if (r.orientacao === "SIM") {
+                chip = <span className="chip-green text-[10px]">SIM</span>;
+              } else if (r.orientacao === "NAO") {
+                chip = <span className="chip-red text-[10px]">NÃO</span>;
+              } else {
+                chip = (
+                  <span className="chip-yellow text-[10px]">análise técnica</span>
+                );
+              }
             }
           }
 
@@ -95,38 +102,46 @@ export function PhasePicker({
             </p>
           </div>
 
-          <div>
-            <label className="label">Orientação da Federação ao destaque</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => onChangeOrientacaoDestaque("SIM")}
-                aria-pressed={orientacaoDestaque === "SIM"}
-                className={`rounded-xl border-2 p-3 transition-all text-center ${
-                  orientacaoDestaque === "SIM"
-                    ? "border-green-600 bg-green-50 ring-2 ring-green-600/20"
-                    : "border-slate-200 bg-white hover:border-green-400 hover:bg-green-50/50"
-                }`}
-              >
-                <span className="font-bold text-sm text-green-800">SIM</span>
-                <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
-              </button>
+          {posicao !== "LIBERAR" && (
+            <div>
+              <label className="label">Orientação da Federação ao destaque</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => onChangeOrientacaoDestaque("SIM")}
+                  aria-pressed={orientacaoDestaque === "SIM"}
+                  className={`rounded-xl border-2 p-3 transition-all text-center ${
+                    orientacaoDestaque === "SIM"
+                      ? "border-green-600 bg-green-50 ring-2 ring-green-600/20"
+                      : "border-slate-200 bg-white hover:border-green-400 hover:bg-green-50/50"
+                  }`}
+                >
+                  <span className="font-bold text-sm text-green-800">SIM</span>
+                  <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => onChangeOrientacaoDestaque("NAO")}
-                aria-pressed={orientacaoDestaque === "NAO"}
-                className={`rounded-xl border-2 p-3 transition-all text-center ${
-                  orientacaoDestaque === "NAO"
-                    ? "border-red-600 bg-red-50 ring-2 ring-red-600/20"
-                    : "border-slate-200 bg-white hover:border-red-400 hover:bg-red-50/50"
-                }`}
-              >
-                <span className="font-bold text-sm text-red-800">NÃO</span>
-                <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeOrientacaoDestaque("NAO")}
+                  aria-pressed={orientacaoDestaque === "NAO"}
+                  className={`rounded-xl border-2 p-3 transition-all text-center ${
+                    orientacaoDestaque === "NAO"
+                      ? "border-red-600 bg-red-50 ring-2 ring-red-600/20"
+                      : "border-slate-200 bg-white hover:border-red-400 hover:bg-red-50/50"
+                  }`}
+                >
+                  <span className="font-bold text-sm text-red-800">NÃO</span>
+                  <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {posicao === "LIBERAR" && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-900 leading-snug">
+              No modo LIBERAR, a Federação libera a votação do destaque. A mensagem já inclui automaticamente o impacto de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui.
+            </div>
+          )}
         </div>
       )}
     </div>
