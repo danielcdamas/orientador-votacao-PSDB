@@ -95,6 +95,49 @@ function formatarOrientacao(valor: "SIM" | "NAO"): string {
   return valor === "SIM" ? "*SIM*" : "*NÃO*";
 }
 
+// Monta o complemento da frase de LIBERAR conforme a fase.
+function rotuloLiberar(
+  fase: Fase,
+  proposicao: Proposicao
+): string {
+  if (fase === "MERITO" && ehRequerimentoUrgencia(proposicao)) {
+    return "a votação da urgência";
+  }
+  if (fase === "MERITO" && ehRequerimentoInterstício(proposicao)) {
+    return "a votação da quebra de interstício";
+  }
+  switch (fase) {
+    case "RETIRADA_PAUTA":
+      return "a votação da retirada de pauta";
+    case "ADIAMENTO_DISCUSSAO":
+      return "a votação do adiamento da discussão";
+    case "ADIAMENTO_VOTACAO":
+      return "a votação do adiamento da votação";
+    case "MERITO":
+      return "a votação do mérito";
+    case "DESTAQUE_TEXTO":
+    case "DESTAQUE_EMENDA":
+      return "a votação do destaque";
+    default:
+      return "a votação";
+  }
+}
+
+// Explicação automática do impacto do voto em destaques liberados.
+function explicacaoVotoDestaque(fase: Fase): string[] {
+  if (fase === "DESTAQUE_TEXTO") {
+    return [
+      "*Voto Sim* => mantém o trecho destacado no texto aprovado.",
+      "*Voto Não* => suprime o trecho destacado do texto aprovado.",
+    ];
+  }
+  // DESTAQUE_EMENDA
+  return [
+    "*Voto Sim* => aprova a emenda destacada.",
+    "*Voto Não* => rejeita a emenda destacada.",
+  ];
+}
+
 function obterIdentificadorDestaque(
   destaque: Destaque | null | undefined,
   manual: string | undefined
