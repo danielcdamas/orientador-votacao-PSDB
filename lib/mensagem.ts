@@ -80,8 +80,9 @@ function adaptarEmenta(proposicao: Proposicao): string {
       .trim();
   }
 
-  if (ehRequerimentoInterstício(proposicao)) {
+ if (ehRequerimentoInterstício(proposicao)) {
     return original
+      .replace(/^requer\s+a\s+/i, "")
       .replace(/^requer,?\s+/i, "")
       .replace(/^solicita,?\s+/i, "")
       .trim();
