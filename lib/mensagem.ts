@@ -30,6 +30,14 @@ function ehRequerimentoUrgencia(proposicao: Proposicao): boolean {
   return proposicao.siglaTipo.toUpperCase() === "REQ" && texto.includes("urgência");
 }
 
+function ehRequerimentoInterstício(proposicao: Proposicao): boolean {
+  const ementa = (proposicao.ementa || "").toLowerCase();
+  return (
+    proposicao.siglaTipo.toUpperCase() === "REQ" &&
+    ementa.includes("interstício")
+  );
+}
+
 function resumirEmenta(texto: string): string {
   const limpo = texto.trim().replace(/\s+/g, " ");
 
@@ -69,6 +77,14 @@ function adaptarEmenta(proposicao: Proposicao): string {
       .replace(/^requer\s+urgência\s+para/i, "urgência para")
       .replace(/^requer\s+/i, "")
       .replace(/^urgência\s+urgentíssima\s+para/i, "urgência para")
+      .trim();
+  }
+
+ if (ehRequerimentoInterstício(proposicao)) {
+    return original
+      .replace(/^requer\s+a\s+/i, "")
+      .replace(/^requer,?\s+/i, "")
+      .replace(/^solicita,?\s+/i, "")
       .trim();
   }
 
@@ -159,10 +175,24 @@ export function gerarMensagem(dados: DadosMensagem): string {
   linhas.push("*VOTAÇÃO NOMINAL*");
   linhas.push("");
 
-  // Pendência 1: se for um requerimento (REQ) sobre outra proposição,
-  // o texto do WhatsApp mostra a proposição-alvo (ex.: o PLP), não o REQ.
+  // Decide o que mostrar no topo do WhatsApp:
+  // - REQ de urgência: mostra o ALVO com prefixo "urgência à proposição que..."
+  // - REQ de quebra de interstício: mostra o próprio REQ (com "Requer" removido)
+  // - Parecer (PAR/PPR/PRLP/PRLE/PEP/PPP/PRL): mostra a PROPOSIÇÃO-ALVO
+  // - Demais: mostra a própria proposição
   const alvo = proposicao.proposicaoAlvo;
-  if (alvo) {
+  if (alvo && ehRequerimentoUrgencia(proposicao)) {
+    const ementaAlvoBruta = (alvo.ementa || "(Ementa não disponível.)").trim().replace(/\s+/g, " ");
+    const ementaAlvo = resumirEmenta(ementaAlvoBruta);
+    // Primeira letra em minúscula para encaixar depois de "que"
+    const ementaMinuscula = ementaAlvo.charAt(0).toLowerCase() + ementaAlvo.slice(1);
+    linhas.push(`${alvo.identificador} – urgência à proposição que ${ementaMinuscula}`);
+  } else if (alvo && ehRequerimentoInterstício(proposicao)) {
+    // Para interstício, mostra o próprio REQ com "Requer" removido
+    const ementa = adaptarEmenta(proposicao);
+    linhas.push(`${proposicao.identificador} – ${ementa}`);
+  } else if (alvo) {
+    // Parecer e demais casos: mostra a proposição-alvo
     const ementaAlvo = resumirEmenta(
       (alvo.ementa || "(Ementa não disponível.)").trim().replace(/\s+/g, " ")
     );
@@ -204,10 +234,12 @@ export function gerarMensagem(dados: DadosMensagem): string {
           ? "*NÃO*"
           : null;
 
-    const rotulo =
-      fase === "MERITO" && ehRequerimentoUrgencia(proposicao)
-        ? "à urgência"
-        : regra.rotuloFase;
+    let rotulo = regra.rotuloFase;
+    if (fase === "MERITO" && ehRequerimentoUrgencia(proposicao)) {
+      rotulo = "à urgência";
+    } else if (fase === "MERITO" && ehRequerimentoInterstício(proposicao)) {
+      rotulo = "à quebra de interstício";
+    }
 
     if (orientacaoNegrito) {
       linhas.push(`${FEDERACAO} orienta ${orientacaoNegrito} ${rotulo}.`);

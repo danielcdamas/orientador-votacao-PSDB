@@ -288,6 +288,7 @@ const SIGLAS_PARECER = new Set([
   "PRLP",  // Parecer Preliminar de Plenário
   "PRLE",  // Parecer Preliminar às Emendas de Plenário
   "PRL",   // Parecer de Relator (genérico)
+  "PPR",   // Parecer Reformulado de Plenário
 ]);
 
 export async function buscarPautaDoDia(): Promise<Proposicao[]> {
