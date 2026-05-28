@@ -2,8 +2,8 @@
 // Tipos compartilhados do app
 // =========================================================
 
-/** Posição do partido em relação à matéria */
-export type Posicao = "A_FAVOR" | "CONTRA";
+/** Posição do partido na votação */
+export type Posicao = "A_FAVOR" | "CONTRA" | "LIBERAR";
 
 /** Orientação específica para um destaque */
 export type OrientacaoDestaque = "SIM" | "NAO";
@@ -17,8 +17,8 @@ export type Fase =
   | "DESTAQUE_TEXTO"
   | "DESTAQUE_EMENDA";
 
-/** Orientação resultante (SIM, NÃO ou ANÁLISE) */
-export type Orientacao = "SIM" | "NAO" | "ANALISE";
+/** Orientação resultante (SIM, NÃO, ANÁLISE ou LIBERAR) */
+export type Orientacao = "SIM" | "NAO" | "ANALISE" | "LIBERAR";
 
 /** Proposição vinda da API da Câmara */
 export interface Proposicao {
