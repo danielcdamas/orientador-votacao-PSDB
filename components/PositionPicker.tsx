@@ -11,6 +11,7 @@ export function PositionPicker({ value, onChange }: PositionPickerProps) {
   return (
     <div className="card animate-slide-up">
       <label className="label">2. Posição da Federação</label>
+
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
@@ -77,6 +78,45 @@ export function PositionPicker({ value, onChange }: PositionPickerProps) {
           </span>
           <span className="text-[11px] text-slate-500 text-center leading-tight">
             Se opor à matéria
+          </span>
+        </button>
+      </div>
+
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => onChange("LIBERAR")}
+          aria-pressed={value === "LIBERAR"}
+          className={`w-full rounded-xl border-2 p-3 transition-all flex items-center justify-center gap-3 ${
+            value === "LIBERAR"
+              ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/20"
+              : "border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50/50"
+          }`}
+        >
+          <svg
+            className={`h-6 w-6 shrink-0 ${
+              value === "LIBERAR" ? "text-amber-600" : "text-slate-400"
+            }`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+          </svg>
+          <span className="flex flex-col items-start leading-tight">
+            <span
+              className={`font-bold text-sm ${
+                value === "LIBERAR" ? "text-amber-700" : "text-slate-700"
+              }`}
+            >
+              LIBERAR
+            </span>
+            <span className="text-[11px] text-slate-500">
+              Liberar a bancada (voto livre)
+            </span>
           </span>
         </button>
       </div>
