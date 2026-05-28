@@ -39,6 +39,15 @@ function ehRequerimentoInterstício(proposicao: Proposicao): boolean {
   );
 }
 
+function ehRequerimentoInterstício(proposicao: Proposicao): boolean {
+  const ementa = (proposicao.ementa || "").toLowerCase();
+  return (
+    proposicao.siglaTipo.toUpperCase() === "REQ" &&
+    (ementa.includes("dispensa de interstício") ||
+      ementa.includes("quebra de interstício"))
+  );
+}
+
 function resumirEmenta(texto: string): string {
   const limpo = texto.trim().replace(/\s+/g, " ");
 
