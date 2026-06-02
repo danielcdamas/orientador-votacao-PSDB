@@ -27,10 +27,15 @@ export function Header() {
           </h1>
         </div>
 
-        <div className="ml-auto">
-          <span className="chip-yellow !bg-psdb-yellow !text-psdb-darkblue text-[10px] sm:text-xs">
-            Câmara dos Deputados
-          </span>
+       <div className="ml-auto flex-shrink-0">
+          <Image
+            src="/LOGO%20-%20C%C3%A2mara%20dos%20Deputados%202025_H2%20-%20Colorida.png"
+            alt="Câmara dos Deputados"
+            width={200}
+            height={52}
+            className="h-9 sm:h-10 w-auto object-contain"
+            priority
+          />
         </div>
       </div>
     </header>
