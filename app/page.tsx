@@ -31,10 +31,17 @@ export default function HomePage() {
   const [carregandoPauta, setCarregandoPauta] = useState(true);
   const [erroPauta, setErroPauta] = useState<string | null>(null);
   const [avisoPauta, setAvisoPauta] = useState<string | null>(null);
-  const [dataSelecionada, setDataSelecionada] = useState<string>(() => {
+const hojeISOStr = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  })();
+  const [dataSelecionada, setDataSelecionada] = useState<string>(hojeISOStr);
+  const [mostrarCalendarioTopo, setMostrarCalendarioTopo] = useState(false);
+  const ehHoje = dataSelecionada === hojeISOStr;
+  const dataBRLonga = (() => {
+    const [a, m, dia] = dataSelecionada.split("-");
+    return `${dia}/${m}/${a}`;
+  })();
 
   const [selecionada, setSelecionada] = useState<Proposicao | null>(null);
   const [posicao, setPosicao] = useState<Posicao | null>(null);
@@ -243,8 +250,114 @@ const aoTrocarData = useCallback(
           <p className="text-sm text-slate-700 leading-relaxed">
             Gere mensagens prontas para WhatsApp sobre as votações do Plenário
             da Câmara. Escolha a proposição, a posição da Federação e a fase da
-            votação.
+           votação.
           </p>
+        </section>
+
+        <section className="mb-3">
+          <div className="flex items-center justify-between gap-2 px-1 mb-2">
+            <span className="text-sm font-bold text-psdb-darkblue flex items-center gap-1.5">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              {ehHoje ? `Pauta de hoje · ${dataBRLonga}` : `Pauta · ${dataBRLonga}`}
+            </span>
+            <div className="flex items-center gap-1">
+              {!ehHoje && (
+                <button
+                  type="button"
+                  onClick={() => aoTrocarData(hojeISOStr)}
+                  className="btn-ghost text-xs"
+                  aria-label="Voltar para a pauta de hoje"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M9 14l-4-4 4-4" />
+                    <path d="M5 10h11a4 4 0 0 1 0 8h-1" />
+                  </svg>
+                  Hoje
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setMostrarCalendarioTopo((v) => !v)}
+                className="btn-ghost text-xs"
+                aria-label="Buscar pauta de outra data"
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Outra data
+              </button>
+              <button
+                type="button"
+                onClick={() => carregarPauta()}
+                className="btn-ghost text-xs"
+                aria-label="Atualizar pauta"
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                Atualizar
+              </button>
+            </div>
+          </div>
+
+          {mostrarCalendarioTopo && (
+            <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
+              <label
+                htmlFor="data-sessao-topo"
+                className="block text-[12px] font-semibold text-slate-700 mb-1.5"
+              >
+                Escolher data da sessão
+              </label>
+              <input
+                id="data-sessao-topo"
+                type="date"
+                value={dataSelecionada}
+                onChange={(e) => {
+                  if (e.target.value) aoTrocarData(e.target.value);
+                }}
+                className="input-base"
+                aria-label="Data da sessão deliberativa"
+              />
+            </div>
+          )}
         </section>
 
         <section className="mb-4">
