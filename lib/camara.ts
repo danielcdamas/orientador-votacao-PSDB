@@ -342,6 +342,7 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
   type PautaResp = {
     dados: Array<{
       ordem: number;
+      topico?: string;
       proposicao_?: ProposicaoPauta;
       proposicaoRelacionada_?: ProposicaoPauta;
     }>;
@@ -433,7 +434,17 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
             identificador: formatarIdentificador(alvo),
           };
         }
+// Guarda o tópico do item da pauta (ex.: "Redações Finais (RICD, art. 83, I)").
+        // Serve para o texto da orientação distinguir redação final de mérito/urgência.
+        mapeada.topico = item.topico;
+        const topicoNormalizado = (item.topico || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        mapeada.ehRedacaoFinal =
+          topicoNormalizado.includes("redac") && topicoNormalizado.includes("finai");
 
+        todasProposicoes.push(mapeada);
         todasProposicoes.push(mapeada);
       }
     } catch {
