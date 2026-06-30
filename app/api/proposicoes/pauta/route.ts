@@ -10,6 +10,7 @@ export async function GET(req: Request): Promise<NextResponse<ApiResponse<Propos
     const url = new URL(req.url);
     const termo = url.searchParams.get("q") || "";
     const idParaDestaques = url.searchParams.get("destaquesDe") || "";
+    const data = url.searchParams.get("data") || "";
 
     if (idParaDestaques) {
       const id = Number(idParaDestaques);
@@ -33,7 +34,7 @@ export async function GET(req: Request): Promise<NextResponse<ApiResponse<Propos
       });
     }
 
-    const proposicoes = await buscarPautaDoDia();
+    const proposicoes = await buscarPautaDoDia(data || undefined);
     return NextResponse.json({
       ok: true,
       data: proposicoes,
