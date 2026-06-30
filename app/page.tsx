@@ -398,9 +398,6 @@ const aoTrocarData = useCallback(
                 proposicoes={pauta}
                 selectedId={selecionada?.id || null}
                 onChange={handleSelecionarProposicao}
-                onRefresh={carregarPauta}
-                dataSelecionada={dataSelecionada}
-                onTrocarData={aoTrocarData}
               />
             </>
           )}
