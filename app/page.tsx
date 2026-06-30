@@ -31,6 +31,10 @@ export default function HomePage() {
   const [carregandoPauta, setCarregandoPauta] = useState(true);
   const [erroPauta, setErroPauta] = useState<string | null>(null);
   const [avisoPauta, setAvisoPauta] = useState<string | null>(null);
+  const [dataSelecionada, setDataSelecionada] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
 
   const [selecionada, setSelecionada] = useState<Proposicao | null>(null);
   const [posicao, setPosicao] = useState<Posicao | null>(null);
@@ -50,35 +54,55 @@ export default function HomePage() {
   const [mensagemGerada, setMensagemGerada] = useState<string>("");
   const [editouMensagem, setEditouMensagem] = useState(false);
 
-  const carregarPauta = useCallback(async () => {
-    setCarregandoPauta(true);
-    setErroPauta(null);
-    setAvisoPauta(null);
-    try {
-      const res = await fetch("/api/proposicoes/pauta", { cache: "no-store" });
-      const json: ApiResponse<Proposicao[]> = await res.json();
-      if (!json.ok) {
-        setErroPauta(
-          json.error ||
-            "Não foi possível carregar a pauta. Verifique sua conexão."
-        );
-        setPauta([]);
-      } else {
-        setPauta(json.data || []);
-        if (json.message) setAvisoPauta(json.message);
-      }
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Erro ao conectar com o servidor.";
-      setErroPauta(msg);
-      setPauta([]);
-    } finally {
-      setCarregandoPauta(false);
-    }
-  }, []);
+const carregarPauta = useCallback(
+    async (data?: string) => {
+      const dataUsada = data ?? dataSelecionada;
+      const [ano, mes, dia] = dataUsada.split("-");
+      const dataBR = `${dia}/${mes}/${ano}`;
 
+      setCarregandoPauta(true);
+      setErroPauta(null);
+      setAvisoPauta(null);
+      try {
+        const res = await fetch(
+          `/api/proposicoes/pauta?data=${dataUsada}`,
+          { cache: "no-store" }
+        );
+        const json: ApiResponse<Proposicao[]> = await res.json();
+        if (!json.ok) {
+          setErroPauta(
+            json.error ||
+              "Não foi possível carregar a pauta. Verifique sua conexão."
+          );
+          setPauta([]);
+        } else {
+          setPauta(json.data || []);
+          if ((json.data || []).length === 0) {
+            setAvisoPauta(`Nenhuma sessão deliberativa em ${dataBR}.`);
+          } else if (json.message) {
+            setAvisoPauta(json.message);
+          }
+        }
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Erro ao conectar com o servidor.";
+        setErroPauta(msg);
+        setPauta([]);
+      } finally {
+        setCarregandoPauta(false);
+      }
+    },
+    [dataSelecionada]
+  );
+const aoTrocarData = useCallback(
+    (novaData: string) => {
+      setDataSelecionada(novaData);
+      carregarPauta(novaData);
+    },
+    [carregarPauta]
+  );
   const carregarDestaques = useCallback(async (idProposicao: number) => {
     setCarregandoDestaques(true);
     setAvisoDestaques(null);
@@ -257,11 +281,13 @@ export default function HomePage() {
                   {avisoPauta}
                 </div>
               )}
-              <PropSelector
+             <PropSelector
                 proposicoes={pauta}
                 selectedId={selecionada?.id || null}
                 onChange={handleSelecionarProposicao}
                 onRefresh={carregarPauta}
+                dataSelecionada={dataSelecionada}
+                onTrocarData={aoTrocarData}
               />
             </>
           )}
