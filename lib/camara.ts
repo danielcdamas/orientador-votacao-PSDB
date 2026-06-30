@@ -445,7 +445,6 @@ export async function buscarPautaDoDia(): Promise<Proposicao[]> {
           topicoNormalizado.includes("redac") && topicoNormalizado.includes("finai");
 
         todasProposicoes.push(mapeada);
-        todasProposicoes.push(mapeada);
       }
     } catch {
       continue;
