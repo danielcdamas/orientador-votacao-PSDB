@@ -291,39 +291,24 @@ const SIGLAS_PARECER = new Set([
   "PPR",   // Parecer Reformulado de Plenário
 ]);
 
-export async function buscarPautaDoDia(): Promise<Proposicao[]> {
-  const hoje = hojeISO();
+export async function buscarPautaDoDia(data?: string): Promise<Proposicao[]> {
   const PLENARIO_ID = 180;
+  // Sem data informada, usa hoje. Com data, usa a data escolhida no calendário.
+  const dataAlvo = data && data.trim() ? data.trim() : hojeISO();
 
   const urlEventos = new URL(`${BASE_URL}/eventos`);
   urlEventos.searchParams.set("idOrgao", String(PLENARIO_ID));
   urlEventos.searchParams.set("codTipoEvento", "110"); // 110 = Sessão Deliberativa (ignora homenagens/solenes)
-  urlEventos.searchParams.set("dataInicio", hoje);
-  urlEventos.searchParams.set("dataFim", hoje);
+  urlEventos.searchParams.set("dataInicio", dataAlvo);
+  urlEventos.searchParams.set("dataFim", dataAlvo);
   urlEventos.searchParams.set("ordem", "ASC");
   urlEventos.searchParams.set("ordenarPor", "dataHoraInicio");
 
   type EventosResp = { dados: Array<{ id: number; descricao: string }> };
-  let eventos = await fetchJson<EventosResp>(urlEventos.toString());
+  const eventos = await fetchJson<EventosResp>(urlEventos.toString());
 
-  if (!eventos.dados || eventos.dados.length === 0) {
-    const seteDias = new Date();
-    seteDias.setDate(seteDias.getDate() - 7);
-    const dataInicio = `${seteDias.getFullYear()}-${String(
-      seteDias.getMonth() + 1
-    ).padStart(2, "0")}-${String(seteDias.getDate()).padStart(2, "0")}`;
-
-    const urlFallback = new URL(`${BASE_URL}/eventos`);
-    urlFallback.searchParams.set("idOrgao", String(PLENARIO_ID));
-    urlFallback.searchParams.set("codTipoEvento", "110"); // 110 = Sessão Deliberativa
-    urlFallback.searchParams.set("dataInicio", dataInicio);
-    urlFallback.searchParams.set("dataFim", hoje);
-    urlFallback.searchParams.set("ordem", "DESC");
-    urlFallback.searchParams.set("ordenarPor", "dataHoraInicio");
-
-    eventos = await fetchJson<EventosResp>(urlFallback.toString());
-  }
-
+// Sem fallback: se não há sessão deliberativa na data, retorna vazio.
+  // O front exibe "Nenhuma sessão deliberativa em DD/MM/AAAA".
   if (!eventos.dados || eventos.dados.length === 0) return [];
 
   const eventosLimitados = eventos.dados.slice(0, 2);
