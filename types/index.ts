@@ -53,6 +53,12 @@ statusProposicao?: {
     ementa: string;
     identificador: string;
   };
+  /** Tópico do item na pauta, vindo da API (ex.: "Redações Finais (RICD, art. 83, I)",
+   *  "Requerimentos de Urgência Art. 155", "Discussão"). Usado para classificar a
+   *  natureza do item e ajustar o texto da orientação. */
+  topico?: string;
+  /** Atalho: true quando o item é uma Redação Final (derivado do topico). */
+  ehRedacaoFinal?: boolean;
 }
 
 /** Destaque apresentado à proposição */

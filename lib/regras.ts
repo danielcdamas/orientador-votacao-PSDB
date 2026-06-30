@@ -38,7 +38,7 @@ export const FASES_DISPONIVEIS: Array<{ value: Fase; label: string }> = [
   { value: "RETIRADA_PAUTA", label: "Retirada de pauta" },
   { value: "ADIAMENTO_DISCUSSAO", label: "Adiamento da discussão" },
   { value: "ADIAMENTO_VOTACAO", label: "Adiamento da votação" },
-  { value: "MERITO", label: "Mérito / urgência" },
+  { value: "MERITO", label: "Mérito / Redação final / urgência" },
   { value: "DESTAQUE_TEXTO", label: "Destaque de texto" },
   { value: "DESTAQUE_EMENDA", label: "Destaque de emenda" },
 ];

@@ -304,11 +304,13 @@ export function gerarMensagem(dados: DadosMensagem): string {
           ? "*NÃO*"
           : null;
 
-    let rotulo = regra.rotuloFase;
+  let rotulo = regra.rotuloFase;
     if (fase === "MERITO" && ehRequerimentoUrgencia(proposicao)) {
       rotulo = "à urgência";
     } else if (fase === "MERITO" && ehRequerimentoInterstício(proposicao)) {
       rotulo = "à quebra de interstício";
+    } else if (fase === "MERITO" && proposicao.ehRedacaoFinal) {
+      rotulo = "à redação final";
     }
 
     if (orientacaoNegrito) {
