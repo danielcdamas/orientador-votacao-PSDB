@@ -305,7 +305,7 @@ body: JSON.stringify({
         </section>
 
         <section className="mb-3">
-          <div className="flex items-center justify-between gap-2 px-1 mb-2">
+          <div className="flex flex-col gap-2 px-1 mb-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-sm font-bold text-psdb-darkblue flex items-center gap-1.5">
               <svg
                 className="h-4 w-4"
@@ -322,7 +322,7 @@ body: JSON.stringify({
               </svg>
               {ehHoje ? `Pauta de hoje · ${dataBRLonga}` : `Pauta · ${dataBRLonga}`}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {!ehHoje && (
                 <button
                   type="button"
@@ -679,7 +679,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.4.0"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.4.1"}
             </span>
           </p>
           <p className="mt-1">
