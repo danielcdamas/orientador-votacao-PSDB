@@ -237,8 +237,10 @@ const aoTrocarData = useCallback(
       const res = await fetch("/api/explicar-destaque", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+body: JSON.stringify({
+          fase,
           proposicao: {
+            id: selecionada.id,
             identificador: selecionada.identificador,
             ementa: selecionada.ementa,
           },
@@ -582,7 +584,7 @@ const aoTrocarData = useCallback(
                 <span className="text-slate-500 font-normal">(opcional)</span>
               </label>
 
-              {fase === "DESTAQUE_TEXTO" && destaqueSelecionado && (
+              {(fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA") && destaqueSelecionado && (
                 <div className="mb-2">
                   <button
                     type="button"
@@ -677,7 +679,7 @@ const aoTrocarData = useCallback(
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.4.0"}
             </span>
           </p>
           <p className="mt-1">

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { buscarPdfEmenda } from "@/lib/camara";
 
 // Roda no servidor (Node), onde a chave existe. Nunca na borda/cliente.
 export const runtime = "nodejs";
 
-// Prompt aprovado: gera SÓ o parágrafo descritivo neutro do destaque de texto.
+// Prompt do destaque de TEXTO (DVS): parágrafo descritivo neutro.
 // NÃO recomenda voto — a direção (SIM/NÃO) já é escolhida pelo usuário no app.
 const PROMPT_DESTAQUE_TEXTO = `Você é um consultor legislativo especializado em análise de proposições da
 Câmara dos Deputados. Sua tarefa é explicar, de forma neutra e objetiva, o
@@ -27,9 +28,43 @@ Regras de forma (obrigatórias):
   viram negrito.)
 - Seja conciso: normalmente de 2 a 4 frases.`;
 
+// Prompt do destaque de EMENDA: descreve o que a emenda faz.
+// O texto integral da emenda (PDF) é anexado à requisição.
+const PROMPT_DESTAQUE_EMENDA = `Você é um consultor legislativo especializado em análise de proposições da
+Câmara dos Deputados. Foi anexado o texto integral (em PDF) de uma Emenda de
+Plenário que é objeto de um destaque para votação em separado. Sua tarefa é
+explicar, de forma neutra e objetiva, o que essa emenda faz.
+
+Escreva UM único parágrafo, em linguagem clara e acessível, que:
+- Diga o que a emenda propõe (o dispositivo que inclui, altera ou suprime),
+  identificando o ponto atingido na proposição.
+- Explique o efeito prático e jurídico da emenda: o que muda no texto da
+  proposição se a emenda for acolhida.
+- Baseie-se exclusivamente no texto da emenda anexada e na descrição
+  fornecida. Não invente conteúdo que não esteja nesses dados.
+
+Regras de forma (obrigatórias):
+- Responda APENAS com o texto do parágrafo. Sem título, sem prefixo, sem
+  rótulos, sem aspas.
+- NÃO recomende voto. NÃO escreva "Voto Sim", "Voto Não", "Impacto dos
+  Votos" ou equivalentes. O texto é apenas descritivo.
+- NÃO use asteriscos, marcadores, negrito ou qualquer marcação — apenas
+  texto corrido. (O resultado será colado no WhatsApp, onde asteriscos
+  viram negrito.)
+- Seja conciso: normalmente de 2 a 4 frases.`;
+
 // Remove caracteres de controle que poderiam sujar o prompt.
 function limpar(valor: unknown): string {
   return String(valor ?? "").replace(/[\u0000-\u001F\u007F]/g, " ").trim();
+}
+
+// Extrai o número da emenda (ex.: "EMP 3" -> 3) da descrição/identificação.
+function extrairNumeroEmenda(...textos: string[]): number | null {
+  const texto = textos.filter(Boolean).join(" ");
+  const m =
+    texto.match(/EMP\s*n?[ºo.]?\s*(\d+)/i) ||
+    texto.match(/emenda\s+(?:de\s+plen[aá]rio\s+)?(?:n[ºo.]\s*)?(\d+)/i);
+  return m ? Number(m[1]) : null;
 }
 
 export async function POST(req: Request) {
@@ -42,7 +77,8 @@ export async function POST(req: Request) {
   }
 
   let corpo: {
-    proposicao?: { identificador?: string; ementa?: string };
+    fase?: string;
+    proposicao?: { id?: number; identificador?: string; ementa?: string };
     destaque?: { identificador?: string; descricao?: string };
   };
   try {
@@ -54,6 +90,8 @@ export async function POST(req: Request) {
     );
   }
 
+  const fase = limpar(corpo?.fase);
+  const propIdNum = Number(corpo?.proposicao?.id) || 0;
   const propId = limpar(corpo?.proposicao?.identificador);
   const propEmenta = limpar(corpo?.proposicao?.ementa);
   const dtqId = limpar(corpo?.destaque?.identificador);
@@ -73,7 +111,7 @@ export async function POST(req: Request) {
     `DADOS DO DESTAQUE:\n` +
     `Identificação: ${dtqId || "(não informada)"}\n` +
     `Descrição: ${dtqDesc}\n\n` +
-    `Gere o parágrafo descritivo deste destaque conforme as instruções.`;
+    `Gere o parágrafo descritivo conforme as instruções.`;
 
   const modelo = "gemini-2.5-flash";
   const endpoint =
@@ -82,11 +120,46 @@ export async function POST(req: Request) {
     ":generateContent?key=" +
     apiKey;
 
-  const payload = {
-    contents: [
-      { parts: [{ text: PROMPT_DESTAQUE_TEXTO + "\n\n---\n\n" + contexto }] },
-    ],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+  // Monta as "parts" do prompt: texto sempre; para emenda, anexa o PDF.
+  const partes: Array<Record<string, unknown>> = [];
+
+  if (fase === "DESTAQUE_EMENDA") {
+    const numero = extrairNumeroEmenda(dtqDesc, dtqId);
+    if (!numero) {
+      return NextResponse.json(
+        { ok: false, error: "Não identifiquei o número da emenda no destaque." },
+        { status: 400 }
+      );
+    }
+    if (!propIdNum) {
+      return NextResponse.json(
+        { ok: false, error: "Falta o id da proposição para localizar a emenda." },
+        { status: 400 }
+      );
+    }
+    const pdf = await buscarPdfEmenda(propIdNum, numero);
+    if (!pdf) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Não encontrei o PDF da EMP ${numero} desta proposição.`,
+        },
+        { status: 404 }
+      );
+    }
+    partes.push({ text: PROMPT_DESTAQUE_EMENDA + "\n\n---\n\n" + contexto });
+    partes.push({ inline_data: { mime_type: pdf.mimeType, data: pdf.base64 } });
+  } else {
+    partes.push({ text: PROMPT_DESTAQUE_TEXTO + "\n\n---\n\n" + contexto });
+  }
+
+const payload = {
+    contents: [{ parts: partes }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 1024 },
+    },
   };
 
   try {
@@ -104,7 +177,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+    const texto =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
     if (!texto) {
       return NextResponse.json(
