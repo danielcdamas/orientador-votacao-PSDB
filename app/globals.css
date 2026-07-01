@@ -54,8 +54,8 @@ body {
            transition-all duration-150 select-none;
   }
 
-  .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl
+.btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl
            px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100
            focus:outline-none focus:ring-2 focus:ring-slate-300
            transition-all duration-150 select-none;
@@ -81,9 +81,14 @@ body {
            px-2.5 py-0.5 text-xs font-medium text-red-800;
   }
 
-  .chip-yellow {
+.chip-yellow {
     @apply inline-flex items-center gap-1 rounded-full bg-amber-100
            px-2.5 py-0.5 text-xs font-medium text-amber-800;
+  }
+
+  .chip-federacao {
+    @apply inline-flex items-center gap-1 rounded-full bg-psdb-yellow
+           px-2 py-0.5 text-[10px] font-bold text-psdb-darkblue;
   }
 }
 

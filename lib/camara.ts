@@ -291,6 +291,56 @@ const SIGLAS_PARECER = new Set([
   "PPR",   // Parecer Reformulado de Plenário
 ]);
 
+// Partidos que compõem a Federação PSDB/Cidadania.
+const SIGLAS_FEDERACAO = ["PSDB", "CIDADANIA"];
+
+// Busca os deputados da Federação PSDB/Cidadania e devolve um mapa
+// idDeputado -> { nome, partido }. Lista dinâmica (reflete o estado atual da
+// Câmara). Usada para marcar relatoria/autoria das matérias da pauta.
+async function buscarDeputadosFederacao(): Promise<Map<number, { nome: string; partido: string }>> {
+  const url = new URL(`${BASE_URL}/deputados`);
+  for (const sigla of SIGLAS_FEDERACAO) {
+    url.searchParams.append("siglaPartido", sigla);
+  }
+  url.searchParams.set("itens", "100");
+  url.searchParams.set("ordem", "ASC");
+  url.searchParams.set("ordenarPor", "nome");
+
+  type DepResp = {
+    dados: Array<{ id: number; nome: string; siglaPartido: string }>;
+  };
+  const mapa = new Map<number, { nome: string; partido: string }>();
+  try {
+    const resp = await fetchJson<DepResp>(url.toString());
+    for (const dep of resp.dados || []) {
+      mapa.set(dep.id, { nome: dep.nome, partido: dep.siglaPartido });
+    }
+  } catch {
+    // Se falhar, devolve mapa vazio (nenhuma marca será aplicada).
+  }
+  return mapa;
+}
+
+// Busca os IDs dos deputados autores de uma proposição. Ignora autores que
+// não são deputados (comissões, Senado Federal, etc.).
+async function buscarIdsAutores(idProposicao: number): Promise<number[]> {
+  type AutoresResp = { dados: Array<{ uri?: string }> };
+  try {
+    const resp = await fetchJson<AutoresResp>(
+      `${BASE_URL}/proposicoes/${idProposicao}/autores`
+    );
+    const ids: number[] = [];
+    for (const autor of resp.dados || []) {
+      const uri = autor.uri || "";
+      if (!uri.includes("/deputados/")) continue;
+      const id = Number(uri.split("/").pop());
+      if (Number.isFinite(id)) ids.push(id);
+    }
+    return ids;
+  } catch {
+    return [];
+  }
+}
 export async function buscarPautaDoDia(data?: string): Promise<Proposicao[]> {
   const PLENARIO_ID = 180;
   // Sem data informada, usa hoje. Com data, usa a data escolhida no calendário.
@@ -330,13 +380,18 @@ export async function buscarPautaDoDia(data?: string): Promise<Proposicao[]> {
       topico?: string;
       proposicao_?: ProposicaoPauta;
       proposicaoRelacionada_?: ProposicaoPauta;
+      relator?: { id?: number };
     }>;
   };
 
   const todasProposicoes: Proposicao[] = [];
   const idsVistos = new Set<number>();
   const identificadoresVistos = new Set<string>();
-
+const infoFederacao: Array<{
+    prop: Proposicao;
+    relatorId?: number;
+    idParaAutores: number;
+  }> = [];
   for (const evento of eventosLimitados) {
     try {
       const pauta = await fetchJson<PautaResp>(`${BASE_URL}/eventos/${evento.id}/pauta`);
@@ -428,14 +483,60 @@ export async function buscarPautaDoDia(data?: string): Promise<Proposicao[]> {
           .toLowerCase();
         mapeada.ehRedacaoFinal =
           topicoNormalizado.includes("redac") && topicoNormalizado.includes("finai");
-
+infoFederacao.push({
+          prop: mapeada,
+          relatorId: item.relator?.id,
+          idParaAutores: mapeada.proposicaoAlvo?.id ?? mapeada.id,
+        });
         todasProposicoes.push(mapeada);
       }
     } catch {
       continue;
     }
   }
+// Marca as matérias com relatoria ou autoria de parlamentar da Federação
+  // PSDB/Cidadania. É um extra: se qualquer chamada falhar, a pauta segue sem
+  // a marca (nunca derruba o carregamento). As buscas de autores rodam em
+  // paralelo; o Next.js ainda cacheia cada chamada por 5 min.
+  try {
+    const federacao = await buscarDeputadosFederacao();
+    if (federacao.size > 0) {
+      const idsAutoresUnicos = [
+        ...new Set(infoFederacao.map((x) => x.idParaAutores)),
+      ];
+      const pares = await Promise.all(
+        idsAutoresUnicos.map(async (id) => {
+          const autores = await buscarIdsAutores(id);
+          return [id, autores] as const;
+        })
+      );
+      const autoresPorProposicao = new Map<number, number[]>(pares);
 
+      for (const info of infoFederacao) {
+        const marca: NonNullable<Proposicao["marcaFederacao"]> = {};
+
+        if (info.relatorId && federacao.has(info.relatorId)) {
+          marca.relator = federacao.get(info.relatorId)!;
+        }
+
+        const autoresDaFederacao = (
+          autoresPorProposicao.get(info.idParaAutores) || []
+        )
+          .filter((idDep) => federacao.has(idDep))
+          .map((idDep) => federacao.get(idDep)!);
+
+        if (autoresDaFederacao.length > 0) {
+          marca.autores = autoresDaFederacao;
+        }
+
+        if (marca.relator || marca.autores) {
+          info.prop.marcaFederacao = marca;
+        }
+      }
+    }
+  } catch {
+    // Se a marcação falhar, a pauta é retornada sem marcas.
+  }
   return todasProposicoes;
 }
 

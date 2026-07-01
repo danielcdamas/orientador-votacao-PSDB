@@ -42,7 +42,13 @@ const hojeISOStr = (() => {
     const [a, m, dia] = dataSelecionada.split("-");
     return `${dia}/${m}/${a}`;
   })();
-
+// Matérias da pauta com relatoria ou autoria de parlamentar da Federação.
+  const materiasFederacao = pauta.filter(
+    (p) =>
+      p.marcaFederacao &&
+      (p.marcaFederacao.relator ||
+        (p.marcaFederacao.autores && p.marcaFederacao.autores.length > 0))
+  );
   const [selecionada, setSelecionada] = useState<Proposicao | null>(null);
   const [posicao, setPosicao] = useState<Posicao | null>(null);
   const [fase, setFase] = useState<Fase | null>(null);
@@ -305,7 +311,7 @@ body: JSON.stringify({
         </section>
 
         <section className="mb-3">
-          <div className="flex items-center justify-between gap-2 px-1 mb-2">
+          <div className="flex flex-col gap-2 px-1 mb-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-sm font-bold text-psdb-darkblue flex items-center gap-1.5">
               <svg
                 className="h-4 w-4"
@@ -322,7 +328,7 @@ body: JSON.stringify({
               </svg>
               {ehHoje ? `Pauta de hoje · ${dataBRLonga}` : `Pauta · ${dataBRLonga}`}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {!ehHoje && (
                 <button
                   type="button"
@@ -409,6 +415,65 @@ body: JSON.stringify({
             </div>
           )}
         </section>
+
+        {materiasFederacao.length > 0 && (
+          <section className="mb-4">
+            <div className="rounded-xl border-2 border-psdb-yellow bg-amber-50 p-3">
+              <div className="flex items-start gap-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-psdb-yellow">
+                  <svg
+                    className="h-4 w-4 text-psdb-darkblue"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-bold text-psdb-darkblue mb-1.5">
+                    {materiasFederacao.length === 1
+                      ? "1 matéria da Federação nesta pauta"
+                      : `${materiasFederacao.length} matérias da Federação nesta pauta`}
+                  </div>
+                  <ul className="space-y-1">
+                    {materiasFederacao.map((p) => (
+                      <li
+                        key={p.id}
+                        className="text-[12px] text-slate-700 leading-snug"
+                      >
+                        <span className="font-bold text-slate-900">
+                          {p.identificador}
+                        </span>
+                        {p.marcaFederacao?.relator && (
+                          <>
+                            {" "}
+                            <span className="chip-blue text-[10px]">
+                              relatoria
+                            </span>{" "}
+                            {p.marcaFederacao.relator.nome}
+                          </>
+                        )}
+                        {p.marcaFederacao?.autores &&
+                          p.marcaFederacao.autores.length > 0 && (
+                            <>
+                              {" "}
+                              <span className="chip-blue text-[10px]">
+                                autoria
+                              </span>{" "}
+                              {p.marcaFederacao.autores
+                                .map((a) => a.nome)
+                                .join(", ")}
+                            </>
+                          )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="mb-4">
           {carregandoPauta && (
@@ -679,7 +744,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.4.0"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.5.0"}
             </span>
           </p>
           <p className="mt-1">

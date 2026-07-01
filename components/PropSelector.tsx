@@ -177,9 +177,14 @@ export function PropSelector({
                 <span className="font-bold text-psdb-darkblue text-sm">
                   {p.identificador}
                 </span>
-                {ativa && (
-                  <span className="chip-blue text-[10px]">Selecionada</span>
-                )}
+                <span className="flex items-center gap-1 shrink-0">
+                  {p.marcaFederacao && (
+                    <span className="chip-federacao">★ Federação</span>
+                  )}
+                  {ativa && (
+                    <span className="chip-blue text-[10px]">Selecionada</span>
+                  )}
+                </span>
               </div>
               <p className="text-xs text-slate-700 leading-snug line-clamp-3">
                 {p.ementa}
