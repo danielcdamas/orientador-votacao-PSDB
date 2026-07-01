@@ -153,9 +153,13 @@ export async function POST(req: Request) {
     partes.push({ text: PROMPT_DESTAQUE_TEXTO + "\n\n---\n\n" + contexto });
   }
 
-  const payload = {
+const payload = {
     contents: [{ parts: partes }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 1024 },
+    },
   };
 
   try {
