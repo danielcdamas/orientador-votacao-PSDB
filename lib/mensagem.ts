@@ -290,10 +290,24 @@ export function gerarMensagem(dados: DadosMensagem): string {
     );
 
     const just = sanitizarTexto(justificativa || "");
-    const desc = just || descricaoDestaque(destaqueSelecionado);
-    if (desc) {
-      linhas.push("");
-      linhas.push(desc);
+if (fase === "DESTAQUE_TEXTO") {
+      // Padrão da casa: descrição crua do destaque + explicação (IA ou manual), os dois.
+      const descCrua = descricaoDestaque(destaqueSelecionado);
+      if (descCrua) {
+        linhas.push("");
+        linhas.push(descCrua);
+      }
+      if (just) {
+        linhas.push("");
+        linhas.push(just);
+      }
+    } else {
+      // DESTAQUE_EMENDA: a explicação (IA) substitui a linha crua "Destaque para EMP 1".
+      const desc = just || descricaoDestaque(destaqueSelecionado);
+      if (desc) {
+        linhas.push("");
+        linhas.push(desc);
+      }
     }
   } else {
     const regra = aplicarRegra(posicao, fase);
