@@ -699,3 +699,62 @@ export async function buscarUltimoParecer(
     return null;
   }
 }
+// =========================================================
+// Destaque de emenda: localizar e baixar o PDF da emenda
+// =========================================================
+// Siglas de emenda que podem ser alvo de um destaque de emenda.
+const SIGLAS_EMENDA = new Set(["EMP", "EMC", "EMR", "EMO", "SBT", "EMD"]);
+
+// Dado o id da proposição e o número da emenda destacada, localiza a emenda
+// nas proposições relacionadas, baixa o PDF do seu inteiro teor e o devolve
+// em base64 (para enviar inline ao Gemini). Retorna null se não encontrar.
+export async function buscarPdfEmenda(
+  idProposicao: number,
+  numeroEmenda: number
+): Promise<{ base64: string; mimeType: string; urlPdf: string } | null> {
+  const url = `${BASE_URL}/proposicoes/${idProposicao}/relacionadas`;
+
+  type Resp = {
+    dados: Array<{ id: number; siglaTipo: string; numero?: number | string }>;
+  };
+
+  try {
+    const resp = await fetchJson<Resp>(url);
+    const emenda = (resp.dados || []).find(
+      (p) =>
+        SIGLAS_EMENDA.has(String(p.siglaTipo || "").toUpperCase()) &&
+        Number(p.numero) === Number(numeroEmenda)
+    );
+    if (!emenda) return null;
+
+    // Busca o inteiro teor (PDF) da emenda encontrada.
+    type DetResp = { dados: { urlInteiroTeor?: string } };
+    const det = await fetchJson<DetResp>(
+      `${BASE_URL}/proposicoes/${emenda.id}`
+    );
+    const urlPdf = det?.dados?.urlInteiroTeor;
+    if (!urlPdf) return null;
+
+    // Baixa o PDF como bytes e converte para base64.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const pdfResp = await fetch(urlPdf, {
+        signal: controller.signal,
+        headers: { Accept: "application/pdf,*/*" },
+      });
+      if (!pdfResp.ok) return null;
+      const buffer = Buffer.from(await pdfResp.arrayBuffer());
+      if (buffer.length === 0) return null;
+      return {
+        base64: buffer.toString("base64"),
+        mimeType: "application/pdf",
+        urlPdf,
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch {
+    return null;
+  }
+}
