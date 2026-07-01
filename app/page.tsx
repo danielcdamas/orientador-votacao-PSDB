@@ -50,6 +50,8 @@ const hojeISOStr = (() => {
   const [orientacaoDestaque, setOrientacaoDestaque] =
     useState<OrientacaoDestaque | null>(null);
   const [justificativa, setJustificativa] = useState("");
+  const [gerandoIA, setGerandoIA] = useState(false);
+  const [erroIA, setErroIA] = useState<string | null>(null);
 
   const [destaques, setDestaques] = useState<Destaque[]>([]);
   const [destaqueSelecionado, setDestaqueSelecionado] =
@@ -209,8 +211,54 @@ const aoTrocarData = useCallback(
     setTimeout(() => {
       document
         .getElementById("preview-mensagem")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
+  }
+
+  async function explicarComIA() {
+    if (!selecionada || !destaqueSelecionado) return;
+    if (
+      justificativa.trim() &&
+      !window.confirm("Já existe um texto. Substituir pela explicação da IA?")
+    ) {
+      return;
+    }
+
+    setGerandoIA(true);
+    setErroIA(null);
+    try {
+      const idDtq = destaqueSelecionado.identificador || identificadorDestaque || "";
+      const descricao =
+        destaqueSelecionado.descricao ||
+        destaqueSelecionado.ementaDetalhada ||
+        destaqueSelecionado.ementa ||
+        "";
+
+      const res = await fetch("/api/explicar-destaque", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposicao: {
+            identificador: selecionada.identificador,
+            ementa: selecionada.ementa,
+          },
+          destaque: { identificador: idDtq, descricao },
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok || !json.texto) {
+        setErroIA(json.error || "Não foi possível gerar a explicação.");
+        return;
+      }
+
+      setJustificativa(json.texto);
+      setEditouMensagem(false);
+    } catch {
+      setErroIA("Erro ao chamar a IA. Verifique a conexão e tente de novo.");
+    } finally {
+      setGerandoIA(false);
+    }
   }
 
   function handleEditarMensagem(novo: string) {
@@ -529,10 +577,37 @@ const aoTrocarData = useCallback(
         {selecionada && posicao && fase && (
           <section className="mb-4">
             <div className="card animate-slide-up">
-              <label className="label" htmlFor="just">
+<label className="label" htmlFor="just">
                 Análise técnica / justificativa{" "}
                 <span className="text-slate-500 font-normal">(opcional)</span>
               </label>
+
+              {fase === "DESTAQUE_TEXTO" && destaqueSelecionado && (
+                <div className="mb-2">
+                  <button
+                    type="button"
+                    onClick={explicarComIA}
+                    disabled={gerandoIA}
+                    className="btn-secondary text-sm"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z" />
+                    </svg>
+                    {gerandoIA ? "Gerando explicação..." : "Explicar com IA"}
+                  </button>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Gera um rascunho pela IA — revise antes de usar.
+                  </p>
+                  {erroIA && (
+                    <p className="text-[11px] text-red-600 mt-1">{erroIA}</p>
+                  )}
+                </div>
+              )}
               <textarea
                 id="just"
                 value={justificativa}
