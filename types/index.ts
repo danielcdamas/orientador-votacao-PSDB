@@ -59,6 +59,14 @@ statusProposicao?: {
   topico?: string;
   /** Atalho: true quando o item é uma Redação Final (derivado do topico). */
   ehRedacaoFinal?: boolean;
+  /** Marca de destaque quando a matéria tem relatoria ou autoria de parlamentar
+   *  da Federação PSDB/Cidadania. Preenchida no servidor ao carregar a pauta. */
+  marcaFederacao?: {
+    relator?: { nome: string; partido: string };
+    autores?: Array<{ nome: string; partido: string }>;
+  };
+}
+  ehRedacaoFinal?: boolean;
 }
 
 /** Destaque apresentado à proposição */
