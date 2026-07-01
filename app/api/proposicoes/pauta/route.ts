@@ -3,6 +3,7 @@ import { buscarPautaDoDia, buscarProposicoes, buscarDestaques } from "@/lib/cama
 import type { ApiResponse, Destaque, Proposicao } from "@/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 export const revalidate = 300;
 
 export async function GET(req: Request): Promise<NextResponse<ApiResponse<Proposicao[] | Destaque[]>>> {
