@@ -62,7 +62,7 @@ function limpar(valor: unknown): string {
 function extrairNumeroEmenda(...textos: string[]): number | null {
   const texto = textos.filter(Boolean).join(" ");
   const m =
-    texto.match(/EMP\s*n?[ºo.]?\s*(\d+)/i) ||
+    texto.match(/\b(?:EMP|EMC|EMR|EMO|SBT|EMD)\s*n?[ºo.]?\s*(\d+)/i) ||
     texto.match(/emenda\s+(?:de\s+plen[aá]rio\s+)?(?:n[ºo.]\s*)?(\d+)/i);
   return m ? Number(m[1]) : null;
 }
