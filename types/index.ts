@@ -66,8 +66,6 @@ statusProposicao?: {
     autores?: Array<{ nome: string; partido: string }>;
   };
 }
-  ehRedacaoFinal?: boolean;
-}
 
 /** Destaque apresentado à proposição */
 export interface Destaque {
