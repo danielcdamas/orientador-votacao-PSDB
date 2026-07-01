@@ -297,9 +297,7 @@ const SIGLAS_FEDERACAO = ["PSDB", "CIDADANIA"];
 // Busca os deputados da Federação PSDB/Cidadania e devolve um mapa
 // idDeputado -> { nome, partido }. Lista dinâmica (reflete o estado atual da
 // Câmara). Usada para marcar relatoria/autoria das matérias da pauta.
-async function buscarDeputadosFederacao(): Promise
-  Map<number, { nome: string; partido: string }>
-> {
+async function buscarDeputadosFederacao(): Promise<Map<number, { nome: string; partido: string }>> {
   const url = new URL(`${BASE_URL}/deputados`);
   for (const sigla of SIGLAS_FEDERACAO) {
     url.searchParams.append("siglaPartido", sigla);
