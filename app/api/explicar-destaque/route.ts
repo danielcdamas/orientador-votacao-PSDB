@@ -113,7 +113,7 @@ export async function POST(req: Request) {
     `Descrição: ${dtqDesc}\n\n` +
     `Gere o parágrafo descritivo conforme as instruções.`;
 
-  const modelo = "gemini-2.5-flash-lite";
+  const modelo = "gemini-2.5-flash";
   const endpoint =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
     modelo +
@@ -171,30 +171,48 @@ const payload = {
     const data = await resp.json();
 
     if (!resp.ok) {
+      // Mensagem que o Gemini devolve no corpo (cota, sobrecarga, chave, etc.).
+      const motivoGemini =
+        data?.error?.message || data?.error?.status || "sem detalhe";
+      // Log à parte: aparece nos Runtime Logs da Vercel. NUNCA logar a chave.
+      console.error(
+        `[explicar-destaque] Gemini HTTP ${resp.status} | fase=${fase} | prop=${propId} | dtq=${dtqId} | ${motivoGemini}`
+      );
       return NextResponse.json(
-        { ok: false, error: "O Gemini retornou um erro.", status: resp.status },
+        {
+          ok: false,
+          error: `Gemini (${resp.status}): ${motivoGemini}`,
+          status: resp.status,
+        },
         { status: 502 }
       );
     }
 
-    const texto =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+    const candidato = data?.candidates?.[0];
+    const texto = candidato?.content?.parts?.[0]?.text?.trim() || "";
 
     if (!texto) {
+      const motivo = candidato?.finishReason || "desconhecido";
+      console.error(
+        `[explicar-destaque] Gemini sem texto | motivo=${motivo} | fase=${fase} | prop=${propId} | dtq=${dtqId}`
+      );
       return NextResponse.json(
-        { ok: false, error: "O Gemini não retornou texto." },
+        {
+          ok: false,
+          error: `O Gemini não retornou texto (motivo: ${motivo}).`,
+        },
         { status: 502 }
       );
     }
 
     return NextResponse.json({ ok: true, texto });
   } catch (e) {
+    const detalhe = e instanceof Error ? e.message : String(e);
+    console.error(
+      `[explicar-destaque] Falha ao chamar o Gemini | fase=${fase} | prop=${propId} | dtq=${dtqId} | ${detalhe}`
+    );
     return NextResponse.json(
-      {
-        ok: false,
-        error: "Falha ao chamar o Gemini.",
-        detalhe: e instanceof Error ? e.message : String(e),
-      },
+      { ok: false, error: `Falha ao chamar o Gemini: ${detalhe}` },
       { status: 500 }
     );
   }
