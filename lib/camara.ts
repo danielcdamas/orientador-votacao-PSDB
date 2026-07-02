@@ -859,3 +859,86 @@ export async function buscarPdfEmenda(
     return null;
   }
 }
+// =========================================================
+// Siglas de parecer/substitutivo aceitas como fonte do inteiro teor para
+// explicar um destaque de TEXTO (DVS), com prioridade (menor = preferido).
+// Pareceres de mérito vêm antes dos preliminares (PRLP/PRLE), que só entram
+// como último recurso. Inclui o Substitutivo (SBT), que carrega o texto legal.
+const PRIORIDADE_PARECER_PDF: Record<string, number> = {
+  PPR: 1,  // Parecer Reformulado de Plenário (mérito, versão mais nova)
+  PPP: 2,  // Parecer Proferido em Plenário (mérito + substitutivo + fundamentação)
+  PEP: 3,  // Parecer às Emendas de Plenário
+  PAR: 4,  // Parecer de Comissão (típico de MPV)
+  PRL: 5,  // Parecer de Relator (genérico)
+  SBT: 6,  // Substitutivo (texto legal puro)
+  PRLP: 7, // Parecer Preliminar de Plenário (fallback)
+  PRLE: 8, // Parecer Preliminar às Emendas (fallback)
+};
+
+// Dado o id da proposição principal, localiza o parecer/substitutivo mais
+// pertinente nas /relacionadas, baixa o PDF do seu inteiro teor e o devolve
+// em base64 (para enviar inline ao Gemini). Prioriza pareceres de mérito
+// sobre os preliminares e, no mesmo nível, o mais recente por data. Serve
+// para dar ao modelo o teor real do dispositivo atingido por um destaque de
+// texto. Retorna null se não encontrar (a rota degrada para só-texto). Nunca
+// lança — mesmo padrão de download da buscarPdfEmenda.
+export async function buscarPdfParecer(
+  idProposicao: number
+): Promise<{ base64: string; mimeType: string; urlPdf: string } | null> {
+  const url = `${BASE_URL}/proposicoes/${idProposicao}/relacionadas`;
+
+  type Resp = {
+    dados: Array<{ id: number; siglaTipo?: string; dataApresentacao?: string }>;
+  };
+
+  try {
+    const resp = await fetchJson<Resp>(url);
+    const candidatos = (resp.dados || [])
+      .map((p) => ({
+        id: p.id,
+        sigla: String(p.siglaTipo || "").toUpperCase(),
+        data: String(p.dataApresentacao || ""),
+      }))
+      .filter((p) => p.sigla in PRIORIDADE_PARECER_PDF);
+    if (candidatos.length === 0) return null;
+
+    // Ordena por prioridade de tipo (asc) e, em empate, por data (desc).
+    candidatos.sort((a, b) => {
+      const pa = PRIORIDADE_PARECER_PDF[a.sigla];
+      const pb = PRIORIDADE_PARECER_PDF[b.sigla];
+      if (pa !== pb) return pa - pb;
+      return b.data.localeCompare(a.data);
+    });
+    const escolhido = candidatos[0];
+
+    // Busca o inteiro teor (PDF) do parecer escolhido.
+    type DetResp = { dados: { urlInteiroTeor?: string } };
+    const det = await fetchJson<DetResp>(
+      `${BASE_URL}/proposicoes/${escolhido.id}`
+    );
+    const urlPdf = det?.dados?.urlInteiroTeor;
+    if (!urlPdf) return null;
+
+    // Baixa o PDF como bytes e converte para base64.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const pdfResp = await fetch(urlPdf, {
+        signal: controller.signal,
+        headers: { Accept: "application/pdf,*/*" },
+      });
+      if (!pdfResp.ok) return null;
+      const buffer = Buffer.from(await pdfResp.arrayBuffer());
+      if (buffer.length === 0) return null;
+      return {
+        base64: buffer.toString("base64"),
+        mimeType: "application/pdf",
+        urlPdf,
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch {
+    return null;
+  }
+}
