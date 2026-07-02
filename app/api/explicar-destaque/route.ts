@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buscarPdfEmenda } from "@/lib/camara";
+import { buscarPdfEmenda, buscarPdfParecer } from "@/lib/camara";
 
 // Roda no servidor (Node), onde a chave existe. Nunca na borda/cliente.
 export const runtime = "nodejs";
@@ -8,15 +8,26 @@ export const runtime = "nodejs";
 // NÃO recomenda voto — a direção (SIM/NÃO) já é escolhida pelo usuário no app.
 const PROMPT_DESTAQUE_TEXTO = `Você é um consultor legislativo especializado em análise de proposições da
 Câmara dos Deputados. Sua tarefa é explicar, de forma neutra e objetiva, o
-que faz um Destaque para Votação em Separado (DVS) apresentado a uma proposição.
+que faz um Destaque para Votação em Separado (DVS) apresentado a um
+dispositivo do texto de uma proposição.
+
+Quando um documento PDF estiver anexado (o parecer proferido em plenário ou o
+substitutivo), use-o como fonte principal: localize nele o dispositivo
+destacado — o artigo, parágrafo, inciso ou expressão indicado na descrição do
+destaque — e leia o que ele de fato estabelece.
 
 Escreva UM único parágrafo, em linguagem clara e acessível, que:
-- Diga o que o destaque pretende fazer (por exemplo, suprimir determinado
-  dispositivo, expressão ou artigo), identificando o dispositivo atingido.
-- Explique o efeito prático e jurídico dessa alteração: o que aquele
-  dispositivo estabelece hoje e o que muda se o destaque for aprovado.
-- Baseie-se no texto real da proposição/parecer/substitutivo e na descrição
-  do destaque. Não invente conteúdo que não esteja nesses dados.
+- Identifique o dispositivo atingido e o que o destaque pretende fazer com
+  ele (por exemplo, suprimir, manter ou alterar).
+- Explique o CONTEÚDO material do dispositivo: o que ele determina
+  concretamente. Não basta citar "§ X do art. Y" — é preciso dizer o que
+  aquele dispositivo estabelece, com base no texto anexado.
+- Explique o efeito prático e jurídico da aprovação e da rejeição do
+  destaque para quem é afetado pela norma.
+- Baseie-se apenas no texto real da proposição/parecer/substitutivo anexado
+  e na descrição do destaque. Não invente conteúdo. Se o texto anexado não
+  permitir identificar o dispositivo, descreva o que for possível a partir da
+  descrição, sem especular.
 
 Regras de forma (obrigatórias):
 - Responda APENAS com o texto do parágrafo. Sem título, sem prefixo, sem
@@ -26,7 +37,8 @@ Regras de forma (obrigatórias):
 - NÃO use asteriscos, marcadores, negrito ou qualquer marcação — apenas
   texto corrido. (O resultado será colado no WhatsApp, onde asteriscos
   viram negrito.)
-- Seja conciso: normalmente de 2 a 4 frases.`;
+- Seja conciso, mas completo: normalmente de 3 a 6 frases, dada a densidade
+  do conteúdo.`;
 
 // Prompt do destaque de EMENDA: descreve o que a emenda faz.
 // O texto integral da emenda (PDF) é anexado à requisição.
@@ -113,7 +125,7 @@ export async function POST(req: Request) {
     `Descrição: ${dtqDesc}\n\n` +
     `Gere o parágrafo descritivo conforme as instruções.`;
 
-  const modelo = "gemini-3.1-flash-lite";;
+  const modelo = "gemini-3.1-flash-lite";
   const endpoint =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
     modelo +
@@ -151,9 +163,20 @@ export async function POST(req: Request) {
     partes.push({ inline_data: { mime_type: pdf.mimeType, data: pdf.base64 } });
   } else {
     partes.push({ text: PROMPT_DESTAQUE_TEXTO + "\n\n---\n\n" + contexto });
+    // Anexa o inteiro teor do parecer/substitutivo (quando houver) para que o
+    // modelo explique o CONTEÚDO material do dispositivo destacado, não só a
+    // mecânica. Se não achar o PDF, degrada para só-texto (comportamento antigo).
+    if (propIdNum) {
+      const pdfParecer = await buscarPdfParecer(propIdNum);
+      if (pdfParecer) {
+        partes.push({
+          inline_data: { mime_type: pdfParecer.mimeType, data: pdfParecer.base64 },
+        });
+      }
+    }
   }
 
-const payload = {
+  const payload = {
     contents: [{ parts: partes }],
     generationConfig: {
       temperature: 0.2,
