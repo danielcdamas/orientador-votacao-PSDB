@@ -113,7 +113,7 @@ export async function POST(req: Request) {
     `Descrição: ${dtqDesc}\n\n` +
     `Gere o parágrafo descritivo conforme as instruções.`;
 
-  const modelo = "gemini-2.5-flash";
+  const modelo = "gemini-2.5-flash-lite";
   const endpoint =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
     modelo +
