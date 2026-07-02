@@ -744,7 +744,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.5.3"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.5.4"}
             </span>
           </p>
           <p className="mt-1">
