@@ -147,9 +147,9 @@ function explicacaoVotoDestaque(
   const compNao = formatarEfeito(efeitoNao);
   if (fase === "DESTAQUE_TEXTO") {
     return [
-      `*Voto Sim* => mantém o trecho destacado no texto aprovado${compSim}.`,
+      `*Voto Sim* => mantém o trecho destacado${compSim}.`,
       "",
-      `*Voto Não* => suprime o trecho destacado do texto aprovado${compNao}.`,
+      `*Voto Não* => suprime o trecho destacado${compNao}.`,
     ];
   }
   // DESTAQUE_EMENDA
@@ -200,13 +200,13 @@ function descricaoDestaque(destaque: Destaque | null | undefined): string {
 
 function rotuloDestaque(
   fase: Fase,
-  destaque: Destaque | null | undefined,
-  orientacao: "SIM" | "NAO"
+  destaque: Destaque | null | undefined
 ): string {
   if (fase === "DESTAQUE_TEXTO") {
-    return orientacao === "SIM"
-      ? "à manutenção do texto objeto do Destaque para Votação em Separado"
-      : "à supressão do texto objeto do Destaque para Votação em Separado";
+    // A direção do voto é carregada apenas pelo SIM/NÃO (como no anúncio em
+    // plenário): "SIM ao texto" mantém; "NÃO ao texto" suprime. Evita a
+    // dupla negação de "NÃO à supressão", que lia-se como o voto contrário.
+    return "ao texto objeto do Destaque para Votação em Separado";
   }
 
   if (fase === "DESTAQUE_EMENDA") {
@@ -308,8 +308,7 @@ export function gerarMensagem(dados: DadosMensagem): string {
     linhas.push(
       `${FEDERACAO} orienta ${orientacaoNegrito} ${rotuloDestaque(
         fase,
-        destaqueSelecionado,
-        orientacao
+        destaqueSelecionado
       )}${complemento}.`
     );
 
