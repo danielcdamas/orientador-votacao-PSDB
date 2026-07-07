@@ -116,4 +116,8 @@ export interface DadosMensagem {
   destaqueSelecionado?: Destaque | null;
   /** Orientação definida pelo usuário para o destaque */
   orientacaoDestaque?: OrientacaoDestaque | null;
+  /** Efeito prático do Voto Sim (gerado pela IA; usado na posição LIBERAR) */
+  efeitoSim?: string;
+  /** Efeito prático do Voto Não (gerado pela IA; usado na posição LIBERAR) */
+  efeitoNao?: string;
 }
