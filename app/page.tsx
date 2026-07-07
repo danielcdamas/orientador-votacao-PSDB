@@ -56,6 +56,9 @@ const hojeISOStr = (() => {
   const [orientacaoDestaque, setOrientacaoDestaque] =
     useState<OrientacaoDestaque | null>(null);
   const [justificativa, setJustificativa] = useState("");
+  // Efeitos práticos do Voto Sim/Não gerados pela IA (usados só em LIBERAR).
+  const [efeitoSim, setEfeitoSim] = useState("");
+  const [efeitoNao, setEfeitoNao] = useState("");
   const [gerandoIA, setGerandoIA] = useState(false);
   const [erroIA, setErroIA] = useState<string | null>(null);
 
@@ -184,6 +187,8 @@ const aoTrocarData = useCallback(
         identificadorDestaque,
         destaqueSelecionado,
         orientacaoDestaque,
+        efeitoSim,
+        efeitoNao,
       });
       setMensagemGerada(texto);
     } catch {
@@ -198,6 +203,8 @@ const aoTrocarData = useCallback(
     identificadorDestaque,
     destaqueSelecionado,
     orientacaoDestaque,
+    efeitoSim,
+    efeitoNao,
     editouMensagem,
   ]);
 
@@ -212,6 +219,8 @@ const aoTrocarData = useCallback(
       identificadorDestaque,
       destaqueSelecionado,
       orientacaoDestaque,
+      efeitoSim,
+      efeitoNao,
     });
     setMensagemGerada(texto);
     setTimeout(() => {
@@ -245,6 +254,7 @@ const aoTrocarData = useCallback(
         headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
           fase,
+          posicao,
           proposicao: {
             id: selecionada.id,
             identificador: selecionada.identificador,
@@ -261,6 +271,9 @@ body: JSON.stringify({
       }
 
       setJustificativa(json.texto);
+      // Efeitos do Voto Sim/Não (só vêm quando a posição é LIBERAR).
+      setEfeitoSim(json.efeitoSim || "");
+      setEfeitoNao(json.efeitoNao || "");
       setEditouMensagem(false);
     } catch {
       setErroIA("Erro ao chamar a IA. Verifique a conexão e tente de novo.");
@@ -281,6 +294,8 @@ body: JSON.stringify({
     setIdentificadorDestaque("");
     setOrientacaoDestaque(null);
     setJustificativa("");
+    setEfeitoSim("");
+    setEfeitoNao("");
     setDestaques([]);
     setDestaqueSelecionado(null);
     setMensagemGerada("");
@@ -294,6 +309,8 @@ body: JSON.stringify({
     setOrientacaoDestaque(null);
     setDestaques([]);
     setDestaqueSelecionado(null);
+    setEfeitoSim("");
+    setEfeitoNao("");
     setEditouMensagem(false);
   }
 
@@ -491,25 +508,32 @@ body: JSON.stringify({
             />
           )}
 
-          {!carregandoPauta && !erroPauta && pauta.length === 0 && (
-            <EmptyState
-              title="Sem pauta disponível"
-              message={
-                avisoPauta ||
-                "Não encontramos sessão do Plenário com proposições pautadas hoje. Tente novamente mais tarde ou use a busca manual."
-              }
-              onRetry={carregarPauta}
-            />
-          )}
-
-          {!carregandoPauta && !erroPauta && pauta.length > 0 && (
+          {!carregandoPauta && !erroPauta && (
             <>
-              {avisoPauta && (
+              {pauta.length === 0 && (
+                <div className="mb-3">
+                  <EmptyState
+                    title="Sem pauta disponível"
+                    message={
+                      avisoPauta ||
+                      "Não encontramos sessão do Plenário com proposições pautadas hoje."
+                    }
+                    onRetry={carregarPauta}
+                  />
+                  <p className="mt-2 text-[12px] text-slate-600">
+                    Você ainda pode pesquisar qualquer proposição em tramitação
+                    na aba <strong>Buscar na Câmara</strong> abaixo.
+                  </p>
+                </div>
+              )}
+              {avisoPauta && pauta.length > 0 && (
                 <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-900">
                   {avisoPauta}
                 </div>
               )}
-             <PropSelector
+              <PropSelector
+                key={pauta.length === 0 ? "sem-pauta" : "com-pauta"}
+                modoInicial={pauta.length === 0 ? "manual" : "pauta"}
                 proposicoes={pauta}
                 selectedId={selecionada?.id || null}
                 onChange={handleSelecionarProposicao}
@@ -540,6 +564,8 @@ body: JSON.stringify({
                 setIdentificadorDestaque("");
                 setOrientacaoDestaque(null);
                 setDestaqueSelecionado(null);
+                setEfeitoSim("");
+                setEfeitoNao("");
                 setEditouMensagem(false);
               }}
               identificadorDestaque={identificadorDestaque}
@@ -600,6 +626,8 @@ body: JSON.stringify({
                         onClick={() => {
                           setDestaqueSelecionado(d);
                           setIdentificadorDestaque(d.identificador);
+                          setEfeitoSim("");
+                          setEfeitoNao("");
                           setEditouMensagem(false);
                         }}
                         className={`w-full text-left rounded-xl border p-3 transition-all ${
@@ -744,7 +772,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.5.6"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.5.7"}
             </span>
           </p>
           <p className="mt-1">

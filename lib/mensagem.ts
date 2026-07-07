@@ -123,18 +123,40 @@ function rotuloLiberar(
   }
 }
 
+// Prepara o efeito vindo da IA para entrar entre parênteses ao final da
+// linha de voto: remove marcação, espaços e ponto final. Vazio => "".
+function formatarEfeito(efeito?: string): string {
+  const limpo = sanitizarTexto(efeito || "")
+    .replace(/\*/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.\s]+$/, "")
+    .trim();
+  return limpo ? ` (${limpo})` : "";
+}
+
 // Explicação automática do impacto do voto em destaques liberados.
-function explicacaoVotoDestaque(fase: Fase): string[] {
+// O TRONCO de cada linha é fixo no código (mantém/suprime; aprova/rejeita)
+// para garantir que a direção do voto nunca seja invertida pela IA; quando
+// a IA fornece os efeitos práticos, eles entram apenas entre parênteses.
+function explicacaoVotoDestaque(
+  fase: Fase,
+  efeitoSim?: string,
+  efeitoNao?: string
+): string[] {
+  const compSim = formatarEfeito(efeitoSim);
+  const compNao = formatarEfeito(efeitoNao);
   if (fase === "DESTAQUE_TEXTO") {
     return [
-      "*Voto Sim* => mantém o trecho destacado no texto aprovado.",
-      "*Voto Não* => suprime o trecho destacado do texto aprovado.",
+      `*Voto Sim* => mantém o trecho destacado${compSim}.`,
+      "",
+      `*Voto Não* => suprime o trecho destacado${compNao}.`,
     ];
   }
   // DESTAQUE_EMENDA
   return [
-    "*Voto Sim* => aprova a emenda destacada.",
-    "*Voto Não* => rejeita a emenda destacada.",
+    `*Voto Sim* => aprova a emenda destacada${compSim}.`,
+    "",
+    `*Voto Não* => rejeita a emenda destacada${compNao}.`,
   ];
 }
 
@@ -178,13 +200,13 @@ function descricaoDestaque(destaque: Destaque | null | undefined): string {
 
 function rotuloDestaque(
   fase: Fase,
-  destaque: Destaque | null | undefined,
-  orientacao: "SIM" | "NAO"
+  destaque: Destaque | null | undefined
 ): string {
   if (fase === "DESTAQUE_TEXTO") {
-    return orientacao === "SIM"
-      ? "à manutenção do texto objeto do Destaque para Votação em Separado"
-      : "à supressão do texto objeto do Destaque para Votação em Separado";
+    // A direção do voto é carregada apenas pelo SIM/NÃO (como no anúncio em
+    // plenário): "SIM ao texto" mantém; "NÃO ao texto" suprime. Evita a
+    // dupla negação de "NÃO à supressão", que lia-se como o voto contrário.
+    return "ao texto objeto do Destaque para Votação em Separado";
   }
 
   if (fase === "DESTAQUE_EMENDA") {
@@ -206,6 +228,8 @@ export function gerarMensagem(dados: DadosMensagem): string {
     identificadorDestaque,
     destaqueSelecionado,
     orientacaoDestaque,
+    efeitoSim,
+    efeitoNao,
   } = dados;
 
   if (!proposicao || !posicao || !fase) {
@@ -256,12 +280,12 @@ export function gerarMensagem(dados: DadosMensagem): string {
     const complemento = idDtq ? ` (${idDtq})` : "";
 
     linhas.push(
-      `${FEDERACAO} orienta *LIBERA* ${rotuloLiberar(fase, proposicao)}${complemento}.`
+      `${FEDERACAO} *LIBERA* ${rotuloLiberar(fase, proposicao)}${complemento}.`
     );
 
     if (ehDestaque) {
       linhas.push("");
-      for (const linha of explicacaoVotoDestaque(fase)) {
+      for (const linha of explicacaoVotoDestaque(fase, efeitoSim, efeitoNao)) {
         linhas.push(linha);
       }
     }
@@ -284,8 +308,7 @@ export function gerarMensagem(dados: DadosMensagem): string {
     linhas.push(
       `${FEDERACAO} orienta ${orientacaoNegrito} ${rotuloDestaque(
         fase,
-        destaqueSelecionado,
-        orientacao
+        destaqueSelecionado
       )}${complemento}.`
     );
 

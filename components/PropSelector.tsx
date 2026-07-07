@@ -7,15 +7,18 @@ interface PropSelectorProps {
   proposicoes: Proposicao[];
   selectedId: number | null;
   onChange: (p: Proposicao | null) => void;
+  /** Aba aberta ao montar: "manual" quando não há pauta carregada. */
+  modoInicial?: "pauta" | "manual";
 }
 
 export function PropSelector({
   proposicoes,
   selectedId,
   onChange,
+  modoInicial = "pauta",
 }: PropSelectorProps) {
   const [busca, setBusca] = useState("");
-  const [modoBusca, setModoBusca] = useState<"pauta" | "manual">("pauta");
+  const [modoBusca, setModoBusca] = useState<"pauta" | "manual">(modoInicial);
   const [resultadosBase, setResultadosBase] = useState<Proposicao[]>([]);
   const [buscandoBase, setBuscandoBase] = useState(false);
   const [erroBuscaBase, setErroBuscaBase] = useState<string | null>(null);
