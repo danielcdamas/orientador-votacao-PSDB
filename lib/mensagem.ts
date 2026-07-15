@@ -38,32 +38,28 @@ function ehRequerimentoInterstício(proposicao: Proposicao): boolean {
   );
 }
 
+// Normaliza a ementa para exibição no WhatsApp.
+//
+// PRINCÍPIO (v1.5.8): a ementa NUNCA é truncada. Numa ferramenta de orientação
+// de voto, frase cortada no meio esconde justamente o que a proposição faz —
+// no PL 3612/2026 o corte antigo (240 caracteres + reticências) engolia
+// "altera as Leis nº 8.078 (CDC) e nº 14.852 (Marco Legal dos Jogos)".
+// Mensagem longa incomoda; informação faltando induz a erro.
+//
+// A única transformação aplicada é compressão SEM PERDA: remover a data de
+// promulgação que segue o número da lei ("Lei nº 9.503, de 23 de setembro de
+// 1997" -> "Lei nº 9.503"). O número já identifica a lei; a data é ruído.
+// Vale para singular e plural ("as Leis nº X ... e nº Y ...").
 function resumirEmenta(texto: string): string {
   const limpo = texto.trim().replace(/\s+/g, " ");
 
-  // Se a ementa já é curta, mantém integral
+  // Ementas curtas não precisam nem da limpeza de datas.
   if (limpo.length <= 180) return limpo;
 
-  // 1) Tenta encontrar o padrão "Altera a Lei nº X, de DATA," e troca por "Altera a Lei nº X"
-  let resumido = limpo.replace(
-    /(Altera|Modifica|Acrescenta|Inclui|Revoga)\s+a\s+Lei\s+n[ºo.]\s*([\d.]+),?\s+de\s+\d{1,2}\s+de\s+\w+\s+de\s+\d{4},?/i,
-    "$1 a Lei nº $2"
+  return limpo.replace(
+    /(n[ºo.]\s*[\d.]+),\s+de\s+\d{1,2}\s+de\s+\w+\s+de\s+\d{4}/gi,
+    "$1"
   );
-
-  // 2) Se ainda estiver longa, corta no primeiro ponto final seguido de espaço
-  if (resumido.length > 220) {
-    const primeiroPonto = resumido.indexOf(". ");
-    if (primeiroPonto > 50 && primeiroPonto < 200) {
-      resumido = resumido.slice(0, primeiroPonto + 1);
-    }
-  }
-
-  // 3) Se mesmo assim continuar muito longa, trunca de forma educada
-  if (resumido.length > 260) {
-    resumido = resumido.slice(0, 240).replace(/[,;:\s]+\S*$/, "") + "...";
-  }
-
-  return resumido;
 }
 
 function adaptarEmenta(proposicao: Proposicao): string {

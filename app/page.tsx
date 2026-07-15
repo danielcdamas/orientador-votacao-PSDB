@@ -62,6 +62,13 @@ const hojeISOStr = (() => {
   const [gerandoIA, setGerandoIA] = useState(false);
   const [erroIA, setErroIA] = useState<string | null>(null);
 
+  // Resumo da proposição (IA) — gerado a partir do inteiro teor (texto
+  // original), independente de posição/fase. Só leitura na tela + copiar.
+  const [resumoIA, setResumoIA] = useState("");
+  const [gerandoResumo, setGerandoResumo] = useState(false);
+  const [erroResumo, setErroResumo] = useState<string | null>(null);
+  const [copiouResumo, setCopiouResumo] = useState(false);
+
   const [destaques, setDestaques] = useState<Destaque[]>([]);
   const [destaqueSelecionado, setDestaqueSelecionado] =
     useState<Destaque | null>(null);
@@ -287,8 +294,57 @@ body: JSON.stringify({
     setEditouMensagem(true);
   }
 
+  // Gera o resumo da proposição a partir do INTEIRO TEOR (texto original).
+  // Se o item selecionado for um REQ de urgência (ou parecer) com proposição-
+  // alvo, o resumo útil é o da MATÉRIA (alvo), não o do requerimento.
+  async function gerarResumoIA() {
+    if (!selecionada) return;
+    const alvo = selecionada.proposicaoAlvo ?? selecionada;
+
+    setGerandoResumo(true);
+    setErroResumo(null);
+    setCopiouResumo(false);
+    try {
+      const res = await fetch("/api/resumir-proposicao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposicao: {
+            id: alvo.id,
+            identificador: alvo.identificador,
+            ementa: alvo.ementa,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok || !json.texto) {
+        setErroResumo(json.error || "Não foi possível gerar o resumo.");
+        return;
+      }
+      setResumoIA(json.texto);
+    } catch {
+      setErroResumo("Erro ao chamar a IA. Verifique a conexão e tente de novo.");
+    } finally {
+      setGerandoResumo(false);
+    }
+  }
+
+  async function copiarResumo() {
+    if (!resumoIA) return;
+    try {
+      await navigator.clipboard.writeText(resumoIA);
+      setCopiouResumo(true);
+      setTimeout(() => setCopiouResumo(false), 2000);
+    } catch {
+      // Sem clipboard disponível: o usuário ainda pode selecionar e copiar.
+    }
+  }
+
   function handleReset() {
     setSelecionada(null);
+    setResumoIA("");
+    setErroResumo(null);
+    setCopiouResumo(false);
     setPosicao(null);
     setFase(null);
     setIdentificadorDestaque("");
@@ -304,6 +360,9 @@ body: JSON.stringify({
 
   function handleSelecionarProposicao(p: Proposicao | null) {
     setSelecionada(p);
+    setResumoIA("");
+    setErroResumo(null);
+    setCopiouResumo(false);
     setFase(null);
     setIdentificadorDestaque("");
     setOrientacaoDestaque(null);
@@ -544,6 +603,66 @@ body: JSON.stringify({
 
         {selecionada && (
           <section className="mb-4">
+            <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">
+                    Resumo da proposição (IA)
+                  </h2>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Explicação breve a partir do inteiro teor (texto original
+                    {selecionada.proposicaoAlvo
+                      ? ` — resume a matéria ${selecionada.proposicaoAlvo.identificador}`
+                      : ""}
+                    ).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={gerarResumoIA}
+                  disabled={gerandoResumo}
+                  className="btn-secondary text-sm shrink-0"
+                >
+                  {gerandoResumo ? "Resumindo..." : "Gerar resumo"}
+                </button>
+              </div>
+
+              {gerandoResumo && (
+                <div className="mt-3">
+                  <Spinner label="Lendo o inteiro teor e resumindo..." />
+                </div>
+              )}
+
+              {erroResumo && !gerandoResumo && (
+                <p className="mt-3 text-[12px] text-red-600">{erroResumo}</p>
+              )}
+
+              {resumoIA && !gerandoResumo && (
+                <div className="mt-3">
+                  <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    {resumoIA}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={copiarResumo}
+                      className="btn-ghost text-xs"
+                    >
+                      {copiouResumo ? "Copiado ✓" : "Copiar"}
+                    </button>
+                    <span className="text-[11px] text-slate-500">
+                      Gerado pela IA sobre o texto original — pode não refletir
+                      substitutivos. Revise antes de repassar.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {selecionada && (
+          <section className="mb-4">
             <PositionPicker
               value={posicao}
               onChange={(p) => {
@@ -772,7 +891,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.5.7"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.6.0"}
             </span>
           </p>
           <p className="mt-1">

@@ -942,3 +942,55 @@ export async function buscarPdfParecer(
     return null;
   }
 }
+
+// Busca o PDF do INTEIRO TEOR da própria proposição (texto original).
+// Usado pelo "Resumo da proposição (IA)": o resumo é gerado a partir do
+// texto integral, não da ementa. Retorno discriminado para a rota poder
+// dar uma mensagem de erro específica ao usuário:
+//  - sem_url: a Câmara não disponibilizou o inteiro teor em PDF
+//  - download: falha ao baixar o arquivo
+//  - muito_grande: PDF acima do limite de envio inline ao Gemini (20 MB)
+export async function buscarPdfInteiroTeor(
+  idProposicao: number
+): Promise<
+  | { ok: true; base64: string; mimeType: string; urlPdf: string }
+  | { ok: false; motivo: "sem_url" | "download" | "muito_grande" }
+> {
+  const LIMITE_BYTES = 19 * 1024 * 1024; // folga sob o limite de 20 MB do Gemini
+
+  try {
+    type DetResp = { dados: { urlInteiroTeor?: string } };
+    const det = await fetchJson<DetResp>(
+      `${BASE_URL}/proposicoes/${idProposicao}`
+    );
+    const urlPdf = det?.dados?.urlInteiroTeor;
+    if (!urlPdf) return { ok: false, motivo: "sem_url" };
+
+    // Baixa o PDF como bytes e converte para base64 — mesmo padrão de
+    // download da buscarPdfParecer/buscarPdfEmenda.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const pdfResp = await fetch(urlPdf, {
+        signal: controller.signal,
+        headers: { Accept: "application/pdf,*/*" },
+      });
+      if (!pdfResp.ok) return { ok: false, motivo: "download" };
+      const buffer = Buffer.from(await pdfResp.arrayBuffer());
+      if (buffer.length === 0) return { ok: false, motivo: "download" };
+      if (buffer.length > LIMITE_BYTES) {
+        return { ok: false, motivo: "muito_grande" };
+      }
+      return {
+        ok: true,
+        base64: buffer.toString("base64"),
+        mimeType: "application/pdf",
+        urlPdf,
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch {
+    return { ok: false, motivo: "download" };
+  }
+}
