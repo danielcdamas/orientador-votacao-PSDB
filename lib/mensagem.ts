@@ -112,7 +112,7 @@ function rotuloLiberar(
     case "MERITO":
       return "a votação do mérito";
     case "EMENDAS_REJEICAO":
-      return "a votação das emendas com parecer pela rejeição";
+      return "a votação da(s) emenda(s) com parecer pela rejeição";
     case "DESTAQUE_TEXTO":
     case "DESTAQUE_EMENDA":
       return "a votação do destaque";
@@ -145,9 +145,9 @@ function explicacaoVotoLiberado(
   // Não há IA envolvida — o resultado de cada voto é sempre o mesmo.
   if (fase === "EMENDAS_REJEICAO") {
     return [
-      "*Voto Sim* => aprova as emendas (contra o parecer do relator).",
+      "*Voto Sim* => aprova a(s) emenda(s) (contra o parecer do(a) relator(a)).",
       "",
-      "*Voto Não* => rejeita as emendas (acompanha o parecer do relator).",
+      "*Voto Não* => rejeita a(s) emenda(s) (acompanha o parecer do(a) relator(a)).",
     ];
   }
 
@@ -350,14 +350,14 @@ if (fase === "DESTAQUE_TEXTO") {
           : null;
 
     // EMENDAS_REJEICAO: a direção do voto vem da escolha explícita do usuário.
-    // SIM aprova as emendas (contra o parecer do relator); NÃO as rejeita
-    // (acompanha o parecer). Sem fallback derivado da posição: A FAVOR da
-    // matéria normalmente implica votar NÃO às emendas que o relator rejeitou,
+    // SIM aprova a(s) emenda(s) (contra o parecer do(a) relator(a)); NÃO as
+    // rejeita (acompanha o parecer). Sem fallback derivado da posição: A FAVOR
+    // da matéria normalmente implica votar NÃO às emendas rejeitadas no parecer,
     // então adivinhar aqui inverteria a orientação.
     if (fase === "EMENDAS_REJEICAO") {
       if (!orientacaoDestaque) {
         throw new Error(
-          "Escolha SIM ou NÃO às emendas com parecer pela rejeição antes de gerar a mensagem."
+          "Escolha SIM ou NÃO à(s) emenda(s) com parecer pela rejeição antes de gerar a mensagem."
         );
       }
       orientacaoNegrito = formatarOrientacao(orientacaoDestaque);
