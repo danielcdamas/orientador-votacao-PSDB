@@ -111,6 +111,8 @@ function rotuloLiberar(
       return "a votação do adiamento da votação";
     case "MERITO":
       return "a votação do mérito";
+    case "EMENDAS_REJEICAO":
+      return "a votação das emendas com parecer pela rejeição";
     case "DESTAQUE_TEXTO":
     case "DESTAQUE_EMENDA":
       return "a votação do destaque";
@@ -134,11 +136,21 @@ function formatarEfeito(efeito?: string): string {
 // O TRONCO de cada linha é fixo no código (mantém/suprime; aprova/rejeita)
 // para garantir que a direção do voto nunca seja invertida pela IA; quando
 // a IA fornece os efeitos práticos, eles entram apenas entre parênteses.
-function explicacaoVotoDestaque(
+function explicacaoVotoLiberado(
   fase: Fase,
   efeitoSim?: string,
   efeitoNao?: string
 ): string[] {
+  // Emendas com parecer pela rejeição: efeito 100% mecânico, fixo no código.
+  // Não há IA envolvida — o resultado de cada voto é sempre o mesmo.
+  if (fase === "EMENDAS_REJEICAO") {
+    return [
+      "*Voto Sim* => aprova as emendas (contra o parecer do relator).",
+      "",
+      "*Voto Não* => rejeita as emendas (acompanha o parecer do relator).",
+    ];
+  }
+
   const compSim = formatarEfeito(efeitoSim);
   const compNao = formatarEfeito(efeitoNao);
   if (fase === "DESTAQUE_TEXTO") {
@@ -279,9 +291,9 @@ export function gerarMensagem(dados: DadosMensagem): string {
       `${FEDERACAO} *LIBERA* ${rotuloLiberar(fase, proposicao)}${complemento}.`
     );
 
-    if (ehDestaque) {
+    if (ehDestaque || fase === "EMENDAS_REJEICAO") {
       linhas.push("");
-      for (const linha of explicacaoVotoDestaque(fase, efeitoSim, efeitoNao)) {
+      for (const linha of explicacaoVotoLiberado(fase, efeitoSim, efeitoNao)) {
         linhas.push(linha);
       }
     }
@@ -330,12 +342,26 @@ if (fase === "DESTAQUE_TEXTO") {
     }
   } else {
     const regra = aplicarRegra(posicao, fase);
-    const orientacaoNegrito =
+    let orientacaoNegrito: string | null =
       regra.orientacao === "SIM"
         ? "*SIM*"
         : regra.orientacao === "NAO"
           ? "*NÃO*"
           : null;
+
+    // EMENDAS_REJEICAO: a direção do voto vem da escolha explícita do usuário.
+    // SIM aprova as emendas (contra o parecer do relator); NÃO as rejeita
+    // (acompanha o parecer). Sem fallback derivado da posição: A FAVOR da
+    // matéria normalmente implica votar NÃO às emendas que o relator rejeitou,
+    // então adivinhar aqui inverteria a orientação.
+    if (fase === "EMENDAS_REJEICAO") {
+      if (!orientacaoDestaque) {
+        throw new Error(
+          "Escolha SIM ou NÃO às emendas com parecer pela rejeição antes de gerar a mensagem."
+        );
+      }
+      orientacaoNegrito = formatarOrientacao(orientacaoDestaque);
+    }
 
   let rotulo = regra.rotuloFase;
     if (fase === "MERITO" && ehRequerimentoUrgencia(proposicao)) {
