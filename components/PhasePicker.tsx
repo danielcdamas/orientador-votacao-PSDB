@@ -113,7 +113,7 @@ export function PhasePicker({
         <div className="mt-4 animate-fade-in">
           <label className="label">
             {ehEmendasRejeicao
-              ? "Orientação da Federação às emendas com parecer pela rejeição"
+              ? "Orientação da Federação à(s) emenda(s) com parecer pela rejeição"
               : "Orientação da Federação ao destaque"}
           </label>
           <div className="grid grid-cols-2 gap-3">
@@ -130,7 +130,7 @@ export function PhasePicker({
               <span className="font-bold text-sm text-green-800">SIM</span>
               <span className="block text-[11px] text-slate-500">
                 {ehEmendasRejeicao
-                  ? "aprova as emendas"
+                  ? "aprova a(s) emenda(s)"
                   : value === "DESTAQUE_TEXTO"
                     ? "ao texto"
                     : "à emenda"}
@@ -150,7 +150,7 @@ export function PhasePicker({
               <span className="font-bold text-sm text-red-800">NÃO</span>
               <span className="block text-[11px] text-slate-500">
                 {ehEmendasRejeicao
-                  ? "rejeita as emendas"
+                  ? "rejeita a(s) emenda(s)"
                   : value === "DESTAQUE_TEXTO"
                     ? "ao texto"
                     : "à emenda"}
@@ -159,8 +159,9 @@ export function PhasePicker({
           </div>
           {ehEmendasRejeicao && (
             <p className="text-[11px] text-slate-500 mt-2 leading-snug">
-              O relator opinou pela rejeição: o voto SIM aprova as emendas
-              (contra o parecer) e o voto NÃO as rejeita (acompanha o parecer).
+              O(A) relator(a) opinou pela rejeição: o voto SIM aprova a(s)
+              emenda(s) (contra o parecer) e o voto NÃO a(s) rejeita (acompanha
+              o parecer).
             </p>
           )}
         </div>
@@ -169,7 +170,7 @@ export function PhasePicker({
       {pedeOrientacaoManual && posicao === "LIBERAR" && (
         <div className="mt-4 animate-fade-in rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-900 leading-snug">
           {ehEmendasRejeicao
-            ? "No modo LIBERAR, a Federação libera a votação das emendas com parecer pela rejeição. A mensagem já inclui o efeito de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui."
+            ? "No modo LIBERAR, a Federação libera a votação da(s) emenda(s) com parecer pela rejeição. A mensagem já inclui o efeito de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui."
             : "No modo LIBERAR, a Federação libera a votação do destaque. A mensagem já inclui automaticamente o impacto de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui."}
         </div>
       )}
