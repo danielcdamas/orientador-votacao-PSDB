@@ -9,6 +9,7 @@ import { MessagePreview } from "@/components/MessagePreview";
 import { SkeletonCard, Spinner } from "@/components/Loading";
 import { ErrorBanner, EmptyState } from "@/components/ErrorBanner";
 import { gerarMensagem } from "@/lib/mensagem";
+import { APP_VERSAO } from "@/lib/versao";
 import type {
   ApiResponse,
   Destaque,
@@ -898,7 +899,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.6.1"}
+              v{APP_VERSAO}
             </span>
           </p>
           <p className="mt-1">
