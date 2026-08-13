@@ -24,6 +24,9 @@ export function PhasePicker({
 }: PhasePickerProps) {
   const mostraCampoDestaque =
     value === "DESTAQUE_TEXTO" || value === "DESTAQUE_EMENDA";
+  const ehEmendasRejeicao = value === "EMENDAS_REJEICAO";
+  // Fases em que o usuário escolhe a direção do voto (SIM/NÃO) na mão.
+  const pedeOrientacaoManual = mostraCampoDestaque || ehEmendasRejeicao;
 
   return (
     <div className="card animate-slide-up">
@@ -42,6 +45,10 @@ export function PhasePicker({
               opt.value === "DESTAQUE_EMENDA"
             ) {
               chip = <span className="chip-yellow text-[10px]">definir DTQ</span>;
+            } else if (opt.value === "EMENDAS_REJEICAO") {
+              chip = (
+                <span className="chip-yellow text-[10px]">definir SIM/NÃO</span>
+              );
             } else {
               const r = aplicarRegra(posicao, opt.value);
               if (r.orientacao === "SIM") {
@@ -82,68 +89,91 @@ export function PhasePicker({
       </div>
 
       {mostraCampoDestaque && (
-        <div className="mt-4 animate-fade-in space-y-4">
-          <div>
-            <label className="label" htmlFor="dtq">
-              Identificador do destaque{" "}
-              <span className="text-slate-500 font-normal">(fallback manual)</span>
-            </label>
-            <input
-              id="dtq"
-              type="text"
-              value={identificadorDestaque}
-              onChange={(e) => onChangeDestaque(e.target.value)}
-              placeholder="Ex.: DTQ 3 – NOVO"
-              className="input-base"
-              maxLength={120}
-            />
-            <p className="text-[11px] text-slate-500 mt-1">
-              Use este campo se o destaque não aparecer automaticamente na lista da Câmara.
-            </p>
+        <div className="mt-4 animate-fade-in">
+          <label className="label" htmlFor="dtq">
+            Identificador do destaque{" "}
+            <span className="text-slate-500 font-normal">(fallback manual)</span>
+          </label>
+          <input
+            id="dtq"
+            type="text"
+            value={identificadorDestaque}
+            onChange={(e) => onChangeDestaque(e.target.value)}
+            placeholder="Ex.: DTQ 3 – NOVO"
+            className="input-base"
+            maxLength={120}
+          />
+          <p className="text-[11px] text-slate-500 mt-1">
+            Use este campo se o destaque não aparecer automaticamente na lista da Câmara.
+          </p>
+        </div>
+      )}
+
+      {pedeOrientacaoManual && posicao !== "LIBERAR" && (
+        <div className="mt-4 animate-fade-in">
+          <label className="label">
+            {ehEmendasRejeicao
+              ? "Orientação da Federação às emendas com parecer pela rejeição"
+              : "Orientação da Federação ao destaque"}
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => onChangeOrientacaoDestaque("SIM")}
+              aria-pressed={orientacaoDestaque === "SIM"}
+              className={`rounded-xl border-2 p-3 transition-all text-center ${
+                orientacaoDestaque === "SIM"
+                  ? "border-green-600 bg-green-50 ring-2 ring-green-600/20"
+                  : "border-slate-200 bg-white hover:border-green-400 hover:bg-green-50/50"
+              }`}
+            >
+              <span className="font-bold text-sm text-green-800">SIM</span>
+              <span className="block text-[11px] text-slate-500">
+                {ehEmendasRejeicao
+                  ? "aprova as emendas"
+                  : value === "DESTAQUE_TEXTO"
+                    ? "ao texto"
+                    : "à emenda"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onChangeOrientacaoDestaque("NAO")}
+              aria-pressed={orientacaoDestaque === "NAO"}
+              className={`rounded-xl border-2 p-3 transition-all text-center ${
+                orientacaoDestaque === "NAO"
+                  ? "border-red-600 bg-red-50 ring-2 ring-red-600/20"
+                  : "border-slate-200 bg-white hover:border-red-400 hover:bg-red-50/50"
+              }`}
+            >
+              <span className="font-bold text-sm text-red-800">NÃO</span>
+              <span className="block text-[11px] text-slate-500">
+                {ehEmendasRejeicao
+                  ? "rejeita as emendas"
+                  : value === "DESTAQUE_TEXTO"
+                    ? "ao texto"
+                    : "à emenda"}
+              </span>
+            </button>
           </div>
-
-          {posicao !== "LIBERAR" && (
-            <div>
-              <label className="label">Orientação da Federação ao destaque</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => onChangeOrientacaoDestaque("SIM")}
-                  aria-pressed={orientacaoDestaque === "SIM"}
-                  className={`rounded-xl border-2 p-3 transition-all text-center ${
-                    orientacaoDestaque === "SIM"
-                      ? "border-green-600 bg-green-50 ring-2 ring-green-600/20"
-                      : "border-slate-200 bg-white hover:border-green-400 hover:bg-green-50/50"
-                  }`}
-                >
-                  <span className="font-bold text-sm text-green-800">SIM</span>
-                  <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onChangeOrientacaoDestaque("NAO")}
-                  aria-pressed={orientacaoDestaque === "NAO"}
-                  className={`rounded-xl border-2 p-3 transition-all text-center ${
-                    orientacaoDestaque === "NAO"
-                      ? "border-red-600 bg-red-50 ring-2 ring-red-600/20"
-                      : "border-slate-200 bg-white hover:border-red-400 hover:bg-red-50/50"
-                  }`}
-                >
-                  <span className="font-bold text-sm text-red-800">NÃO</span>
-                  <span className="block text-[11px] text-slate-500">{value === "DESTAQUE_TEXTO" ? "ao texto" : "à emenda"}</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {posicao === "LIBERAR" && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-900 leading-snug">
-              No modo LIBERAR, a Federação libera a votação do destaque. A mensagem já inclui automaticamente o impacto de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui.
-            </div>
+          {ehEmendasRejeicao && (
+            <p className="text-[11px] text-slate-500 mt-2 leading-snug">
+              O relator opinou pela rejeição: o voto SIM aprova as emendas
+              (contra o parecer) e o voto NÃO as rejeita (acompanha o parecer).
+            </p>
           )}
         </div>
       )}
+
+      {pedeOrientacaoManual && posicao === "LIBERAR" && (
+        <div className="mt-4 animate-fade-in rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-900 leading-snug">
+          {ehEmendasRejeicao
+            ? "No modo LIBERAR, a Federação libera a votação das emendas com parecer pela rejeição. A mensagem já inclui o efeito de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui."
+            : "No modo LIBERAR, a Federação libera a votação do destaque. A mensagem já inclui automaticamente o impacto de cada voto (Voto Sim / Voto Não), então não é preciso definir SIM/NÃO aqui."}
+        </div>
+      )}
+
     </div>
   );
 }
