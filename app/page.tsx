@@ -165,6 +165,10 @@ const aoTrocarData = useCallback(
   }, [carregarPauta]);
 
   const ehDestaque = fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA";
+  // Emendas com parecer pela rejeição: como nos destaques, o SIM/NÃO é escolha
+  // explícita do usuário (não há DTQ nem lista da Câmara nessa fase).
+  const ehEmendasRejeicao = fase === "EMENDAS_REJEICAO";
+  const pedeOrientacaoManual = ehDestaque || ehEmendasRejeicao;
 
   useEffect(() => {
     if (selecionada && ehDestaque) {
@@ -179,9 +183,10 @@ const aoTrocarData = useCallback(
 
   const podeGerar = useMemo(() => {
     if (!selecionada || !posicao || !fase) return false;
-    if (ehDestaque && posicao !== "LIBERAR" && !orientacaoDestaque) return false;
+    if (pedeOrientacaoManual && posicao !== "LIBERAR" && !orientacaoDestaque)
+      return false;
     return true;
-  }, [selecionada, posicao, fase, ehDestaque, orientacaoDestaque]);
+  }, [selecionada, posicao, fase, pedeOrientacaoManual, orientacaoDestaque]);
 
   useEffect(() => {
     if (!podeGerar || editouMensagem) return;
@@ -864,8 +869,10 @@ body: JSON.stringify({
               >
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
               </svg>
-              {ehDestaque && posicao !== "LIBERAR" && !orientacaoDestaque
-                ? "Escolha SIM ou NÃO ao destaque"
+              {pedeOrientacaoManual && posicao !== "LIBERAR" && !orientacaoDestaque
+                ? ehEmendasRejeicao
+                  ? "Escolha SIM ou NÃO à(s) emenda(s)"
+                  : "Escolha SIM ou NÃO ao destaque"
                 : "Gerar mensagem"}
             </button>
             <button
@@ -891,7 +898,7 @@ body: JSON.stringify({
           <p>
             Federação PSDB/CID · Orientador de Votação ·{" "}
             <span className="font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.6.0"}
+              v{process.env.NEXT_PUBLIC_APP_VERSION || "1.6.1"}
             </span>
           </p>
           <p className="mt-1">
