@@ -40,7 +40,7 @@ export const FASES_DISPONIVEIS: Array<{ value: Fase; label: string }> = [
   { value: "ADIAMENTO_DISCUSSAO", label: "Adiamento da discussão" },
   { value: "ADIAMENTO_VOTACAO", label: "Adiamento da votação" },
   { value: "MERITO", label: "Mérito / Redação final / urgência" },
-  { value: "EMENDAS_REJEICAO", label: "Emendas pela Rejeição" },
+  { value: "EMENDAS_REJEICAO", label: "Emenda(s) pela Rejeição" },
   { value: "DESTAQUE_TEXTO", label: "Destaque de texto" },
   { value: "DESTAQUE_EMENDA", label: "Destaque de emenda" },
 ];
@@ -60,9 +60,10 @@ export function aplicarRegra(posicao: Posicao, fase: Fase): ResultadoRegra {
   // Fases em que a direção do voto é escolha EXPLÍCITA do usuário e não pode
   // ser deduzida da posição na matéria:
   // - destaques: o app precisa orientar SIM ou NÃO ao DTQ específico;
-  // - EMENDAS_REJEICAO: votam-se as emendas que o relator rejeitou, então SIM
-  //   aprova as emendas (contra o parecer) e NÃO as rejeita (acompanha o
-  //   parecer). Ser A FAVOR da matéria costuma significar votar NÃO aqui —
+  // - EMENDAS_REJEICAO: votam-se as emendas que o(a) relator(a) rejeitou,
+  //   então SIM aprova a(s) emenda(s) (contra o parecer) e NÃO as rejeita
+  //   (acompanha o parecer). Ser A FAVOR da matéria costuma significar votar
+  //   NÃO aqui —
   //   derivar da posição inverteria a orientação.
   if (
     fase === "DESTAQUE_TEXTO" ||
