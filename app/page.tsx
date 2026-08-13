@@ -871,7 +871,7 @@ body: JSON.stringify({
               </svg>
               {pedeOrientacaoManual && posicao !== "LIBERAR" && !orientacaoDestaque
                 ? ehEmendasRejeicao
-                  ? "Escolha SIM ou NÃO às emendas"
+                  ? "Escolha SIM ou NÃO à(s) emenda(s)"
                   : "Escolha SIM ou NÃO ao destaque"
                 : "Gerar mensagem"}
             </button>
