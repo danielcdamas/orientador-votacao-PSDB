@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -49,7 +50,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* Avisa quando o navegador está rodando uma versão antiga do app. */}
+        <UpdateBanner />
+        {children}
+      </body>
     </html>
   );
 }
