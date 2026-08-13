@@ -14,6 +14,7 @@ export type Fase =
   | "ADIAMENTO_DISCUSSAO"
   | "ADIAMENTO_VOTACAO"
   | "MERITO"
+  | "EMENDAS_REJEICAO"
   | "DESTAQUE_TEXTO"
   | "DESTAQUE_EMENDA";
 
@@ -114,7 +115,9 @@ export interface DadosMensagem {
   identificadorDestaque?: string;
   /** Destaque selecionado a partir da API da Câmara */
   destaqueSelecionado?: Destaque | null;
-  /** Orientação definida pelo usuário para o destaque */
+  /** Orientação SIM/NÃO definida diretamente pelo usuário. Usada nos destaques
+   *  e também na fase EMENDAS_REJEICAO (emendas com parecer pela rejeição),
+   *  em que a direção do voto NUNCA é derivada da posição na matéria. */
   orientacaoDestaque?: OrientacaoDestaque | null;
   /** Efeito prático do Voto Sim (gerado pela IA; usado na posição LIBERAR) */
   efeitoSim?: string;
