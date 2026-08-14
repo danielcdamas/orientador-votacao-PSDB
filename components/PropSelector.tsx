@@ -35,6 +35,41 @@ export function PropSelector({
   const [erroBuscaBase, setErroBuscaBase] = useState<string | null>(null);
   const [avisoBuscaBase, setAvisoBuscaBase] = useState<string | null>(null);
 
+  // Sinalizações dos RESULTADOS DA BUSCA ("Buscar na Câmara"). As da pauta
+  // vêm prontas do pai (prop `sinalizacoes`); os resultados de busca só
+  // existem aqui dentro, então a consulta deles também é feita aqui.
+  // Tolerante a falha: erro = bolinhas não acendem, busca continua normal.
+  const [sinalBusca, setSinalBusca] = useState<MapaSinalizacoes>({});
+  const [carregandoSinalBusca, setCarregandoSinalBusca] = useState(false);
+  const [sinalBuscaEm, setSinalBuscaEm] = useState<string | null>(null);
+
+  async function carregarSinalizacoesBusca(itens: Proposicao[]) {
+    const ids = itens.map((p) => p.id).filter((id) => Number.isFinite(id));
+    if (ids.length === 0) return;
+    setCarregandoSinalBusca(true);
+    try {
+      const res = await fetch("/api/proposicoes/sinalizacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+        cache: "no-store",
+      });
+      const json: ApiResponse<MapaSinalizacoes> = await res.json();
+      if (!json.ok) return;
+      setSinalBusca(json.data || {});
+      const agora = new Date();
+      setSinalBuscaEm(
+        `${String(agora.getHours()).padStart(2, "0")}:${String(
+          agora.getMinutes()
+        ).padStart(2, "0")}`
+      );
+    } catch {
+      // Silencioso de propósito.
+    } finally {
+      setCarregandoSinalBusca(false);
+    }
+  }
+
   const filtradasPauta = useMemo(() => {
     if (!busca.trim()) return proposicoes;
     const termo = busca.toLowerCase().trim();
@@ -75,6 +110,11 @@ export function PropSelector({
       }
       setResultadosBase(json.data || []);
       if (json.message) setAvisoBuscaBase(json.message);
+      // Bolinhas de DTQ/RPD também nos resultados da busca (em segundo
+      // plano; não atrasa a exibição da lista).
+      setSinalBusca({});
+      setSinalBuscaEm(null);
+      carregarSinalizacoesBusca(json.data || []);
     } catch (err: unknown) {
       setErroBuscaBase(
         err instanceof Error ? err.message : "Erro ao consultar a base da Câmara."
@@ -162,7 +202,8 @@ export function PropSelector({
         </div>
       )}
 
-      {modoBusca === "pauta" && proposicoes.length > 0 && onAtualizarSinalizacoes && (
+      {((modoBusca === "pauta" && proposicoes.length > 0 && onAtualizarSinalizacoes) ||
+        (modoBusca === "manual" && resultadosBase.length > 0)) && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-700">
             <span className="inline-flex items-center gap-1">
@@ -180,20 +221,28 @@ export function PropSelector({
               requerimento (RPD)
             </span>
             <span className="text-slate-500">
-              {carregandoSinalizacoes
+              {(modoBusca === "pauta" ? carregandoSinalizacoes : carregandoSinalBusca)
                 ? "checando..."
-                : sinalizacoesEm
-                  ? `atualizado às ${sinalizacoesEm}`
+                : (modoBusca === "pauta" ? sinalizacoesEm : sinalBuscaEm)
+                  ? `atualizado às ${modoBusca === "pauta" ? sinalizacoesEm : sinalBuscaEm}`
                   : "ainda não checado"}
             </span>
           </div>
           <button
             type="button"
-            onClick={onAtualizarSinalizacoes}
-            disabled={carregandoSinalizacoes}
+            onClick={
+              modoBusca === "pauta"
+                ? onAtualizarSinalizacoes
+                : () => carregarSinalizacoesBusca(resultadosBase)
+            }
+            disabled={
+              modoBusca === "pauta" ? carregandoSinalizacoes : carregandoSinalBusca
+            }
             className="btn-secondary !py-1 !px-2.5 text-[11px] whitespace-nowrap"
           >
-            {carregandoSinalizacoes ? "Atualizando..." : "Atualizar sinalizações"}
+            {(modoBusca === "pauta" ? carregandoSinalizacoes : carregandoSinalBusca)
+              ? "Atualizando..."
+              : "Atualizar sinalizações"}
           </button>
         </div>
       )}
@@ -211,7 +260,9 @@ export function PropSelector({
 
         {listaExibida.map((p) => {
           const ativa = p.id === selectedId;
-          const sinal = sinalizacoes?.[String(p.id)];
+          // Pauta: contagens vindas do pai. Busca: contagens locais.
+          const sinal =
+            sinalizacoes?.[String(p.id)] ?? sinalBusca[String(p.id)];
           return (
             <button
               key={p.id}
