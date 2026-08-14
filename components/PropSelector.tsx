@@ -1,6 +1,6 @@
 "use client";
 
-import type { ApiResponse, Proposicao } from "@/types";
+import type { ApiResponse, MapaSinalizacoes, Proposicao } from "@/types";
 import { useMemo, useState } from "react";
 
 interface PropSelectorProps {
@@ -9,6 +9,13 @@ interface PropSelectorProps {
   onChange: (p: Proposicao | null) => void;
   /** Aba aberta ao montar: "manual" quando não há pauta carregada. */
   modoInicial?: "pauta" | "manual";
+  /** Contagem de destaques (DTQ) e requerimentos (RPD) por id de proposição. */
+  sinalizacoes?: MapaSinalizacoes;
+  /** Dispara nova checagem de sinalizações na API da Câmara. */
+  onAtualizarSinalizacoes?: () => void;
+  /** Hora da última checagem, já formatada (ex.: "15:42"). */
+  sinalizacoesEm?: string | null;
+  carregandoSinalizacoes?: boolean;
 }
 
 export function PropSelector({
@@ -16,6 +23,10 @@ export function PropSelector({
   selectedId,
   onChange,
   modoInicial = "pauta",
+  sinalizacoes,
+  onAtualizarSinalizacoes,
+  sinalizacoesEm = null,
+  carregandoSinalizacoes = false,
 }: PropSelectorProps) {
   const [busca, setBusca] = useState("");
   const [modoBusca, setModoBusca] = useState<"pauta" | "manual">(modoInicial);
@@ -23,6 +34,41 @@ export function PropSelector({
   const [buscandoBase, setBuscandoBase] = useState(false);
   const [erroBuscaBase, setErroBuscaBase] = useState<string | null>(null);
   const [avisoBuscaBase, setAvisoBuscaBase] = useState<string | null>(null);
+
+  // Sinalizações dos RESULTADOS DA BUSCA ("Buscar na Câmara"). As da pauta
+  // vêm prontas do pai (prop `sinalizacoes`); os resultados de busca só
+  // existem aqui dentro, então a consulta deles também é feita aqui.
+  // Tolerante a falha: erro = bolinhas não acendem, busca continua normal.
+  const [sinalBusca, setSinalBusca] = useState<MapaSinalizacoes>({});
+  const [carregandoSinalBusca, setCarregandoSinalBusca] = useState(false);
+  const [sinalBuscaEm, setSinalBuscaEm] = useState<string | null>(null);
+
+  async function carregarSinalizacoesBusca(itens: Proposicao[]) {
+    const ids = itens.map((p) => p.id).filter((id) => Number.isFinite(id));
+    if (ids.length === 0) return;
+    setCarregandoSinalBusca(true);
+    try {
+      const res = await fetch("/api/proposicoes/sinalizacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+        cache: "no-store",
+      });
+      const json: ApiResponse<MapaSinalizacoes> = await res.json();
+      if (!json.ok) return;
+      setSinalBusca(json.data || {});
+      const agora = new Date();
+      setSinalBuscaEm(
+        `${String(agora.getHours()).padStart(2, "0")}:${String(
+          agora.getMinutes()
+        ).padStart(2, "0")}`
+      );
+    } catch {
+      // Silencioso de propósito.
+    } finally {
+      setCarregandoSinalBusca(false);
+    }
+  }
 
   const filtradasPauta = useMemo(() => {
     if (!busca.trim()) return proposicoes;
@@ -64,6 +110,11 @@ export function PropSelector({
       }
       setResultadosBase(json.data || []);
       if (json.message) setAvisoBuscaBase(json.message);
+      // Bolinhas de DTQ/RPD também nos resultados da busca (em segundo
+      // plano; não atrasa a exibição da lista).
+      setSinalBusca({});
+      setSinalBuscaEm(null);
+      carregarSinalizacoesBusca(json.data || []);
     } catch (err: unknown) {
       setErroBuscaBase(
         err instanceof Error ? err.message : "Erro ao consultar a base da Câmara."
@@ -151,6 +202,51 @@ export function PropSelector({
         </div>
       )}
 
+      {((modoBusca === "pauta" && proposicoes.length > 0 && onAtualizarSinalizacoes) ||
+        (modoBusca === "manual" && resultadosBase.length > 0)) && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-700">
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="h-2.5 w-2.5 rounded-full bg-red-600"
+                aria-hidden="true"
+              />
+              destaque (DTQ)
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="h-2.5 w-2.5 rounded-full bg-amber-500"
+                aria-hidden="true"
+              />
+              requerimento (RPD)
+            </span>
+            <span className="text-slate-500">
+              {(modoBusca === "pauta" ? carregandoSinalizacoes : carregandoSinalBusca)
+                ? "checando..."
+                : (modoBusca === "pauta" ? sinalizacoesEm : sinalBuscaEm)
+                  ? `atualizado às ${modoBusca === "pauta" ? sinalizacoesEm : sinalBuscaEm}`
+                  : "ainda não checado"}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={
+              modoBusca === "pauta"
+                ? onAtualizarSinalizacoes
+                : () => carregarSinalizacoesBusca(resultadosBase)
+            }
+            disabled={
+              modoBusca === "pauta" ? carregandoSinalizacoes : carregandoSinalBusca
+            }
+            className="btn-secondary !py-1 !px-2.5 text-[11px] whitespace-nowrap"
+          >
+            {(modoBusca === "pauta" ? carregandoSinalizacoes : carregandoSinalBusca)
+              ? "Atualizando..."
+              : "Atualizar sinalizações"}
+          </button>
+        </div>
+      )}
+
       <div className="max-h-72 overflow-y-auto pr-1 -mr-1 space-y-2">
         {listaExibida.length === 0 && (
           <div className="text-sm text-slate-500 py-6 text-center">
@@ -164,6 +260,9 @@ export function PropSelector({
 
         {listaExibida.map((p) => {
           const ativa = p.id === selectedId;
+          // Pauta: contagens vindas do pai. Busca: contagens locais.
+          const sinal =
+            sinalizacoes?.[String(p.id)] ?? sinalBusca[String(p.id)];
           return (
             <button
               key={p.id}
@@ -181,6 +280,34 @@ export function PropSelector({
                   {p.identificador}
                 </span>
                 <span className="flex items-center gap-1 shrink-0">
+                  {/* Bolinhas de sinalização. A cor nunca é o único indicador:
+                      há número visível e rótulo acessível em cada uma. */}
+                  {sinal && sinal.destaques > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-800"
+                      title={`${sinal.destaques} destaque(s) apresentado(s) para esta sessão`}
+                      aria-label={`${sinal.destaques} destaque(s) apresentado(s)`}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full bg-red-600"
+                        aria-hidden="true"
+                      />
+                      {sinal.destaques}
+                    </span>
+                  )}
+                  {sinal && sinal.rpd > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800"
+                      title={`${sinal.rpd} requerimento(s) procedimental(is) apresentado(s) para esta sessão`}
+                      aria-label={`${sinal.rpd} requerimento(s) procedimental(is) apresentado(s)`}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full bg-amber-500"
+                        aria-hidden="true"
+                      />
+                      {sinal.rpd}
+                    </span>
+                  )}
                   {p.marcaFederacao && (
                     <span className="chip-federacao">★ Federação</span>
                   )}

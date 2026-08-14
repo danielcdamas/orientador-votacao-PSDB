@@ -2,7 +2,7 @@
 // Cliente da API de Dados Abertos da Câmara dos Deputados
 // Documentação oficial: https://dadosabertos.camara.leg.br/swagger/api.html
 // =========================================================
-import type { Destaque, Parecer, Proposicao } from "@/types";
+import type { Destaque, Parecer, Proposicao, Sinalizacoes } from "@/types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_CAMARA_API_BASE ||
@@ -17,13 +17,16 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
 
   try {
     const res = await fetch(url, {
+      // Padrão: cache de 5 minutos. Vem ANTES do spread para que uma chamada
+      // que precise de dado fresquíssimo (ver contarSinalizacoes) possa
+      // sobrescrever passando next: { revalidate: 0 }.
+      next: { revalidate: 300 },
       ...options,
       signal: controller.signal,
       headers: {
         Accept: "application/json",
         ...options.headers,
       },
-      next: { revalidate: 300 },
     });
 
     if (!res.ok) {
@@ -733,6 +736,194 @@ async function detalharDestaque(
     apresentante,
     urlInteiroTeor,
   };
+}
+
+// =========================================================
+// Sinalizações da pauta (bolinha vermelha = DTQ, amarela = RPD)
+// =========================================================
+// Objetivo: acender um aviso ao lado de cada item da pauta quando houver
+// destaque (DTQ) ou requerimento procedimental (RPD) AINDA PENDENTE de
+// deliberação. É contagem pura: não baixa o conteúdo de nada.
+//
+// FONTE: as páginas do portal do Plenário (pplen), raspadas em HTML.
+//
+//   destaques.html?codOrgao=180&codProposicao={id}
+//   requerimentos-proposicao.html?codOrgao=180&codProposicao={id}
+//
+// Por que NÃO usar a API de Dados Abertos aqui — medido com dado real:
+//
+// 1) /proposicoes/{id}/relacionadas devolve o histórico inteiro e NUNCA diz se
+//    o documento foi retirado, prejudicado ou já apreciado. O PL 5229/2025
+//    acumulava 39 RPD desde junho/2026, quase todos mortos.
+//
+// 2) Tentar deduzir a situação por data também erra. Pelo recorte "data da
+//    sessão + véspera", o PL 5229/2025 mostraria 3 destaques; o portal mostra
+//    6 pendentes — os DTQ 1, 2 e 3 foram apresentados em julho e continuam de
+//    pé. O recorte por data esconderia METADE dos destaques do plenarista.
+//
+// 3) /eventos/{id}/votacoes existe, mas o id dela é {idProposicaoPrincipal}-{seq}:
+//    aponta para a matéria, nunca para o DTQ/RPD específico. Não serve para
+//    apagar bolinha.
+//
+// O DISCRIMINADOR é a coluna "Situação" das duas páginas: conta apenas
+// "Em tramitação". Testado contra o PL 2978/2023, matéria já transformada em
+// norma jurídica: o destaque continua LISTADO, porém com situação
+// "Mantido o Texto" — ou seja, filtrar por situação é obrigatório, a simples
+// presença na página não significa pendência.
+//
+// Linhas "VN n" (descrição "(VOTAÇÃO NOMINAL)") são o pedido de votação
+// nominal que acompanha cada item, não um documento novo: sempre descartadas.
+// =========================================================
+
+/** Situação que caracteriza documento ainda pendente de deliberação. */
+const SITUACAO_PENDENTE = /em\s+tramita[\u00e7c][\u00e3a]o/i;
+
+/** Descrição-carimbo das linhas de pedido de votação nominal (a descartar). */
+const MARCA_VOTACAO_NOMINAL = "(VOTAÇÃO NOMINAL)";
+
+const PPLEN_URL = "https://www.camara.leg.br/pplen";
+
+/** Remove tags, resolve as entidades usadas pelo portal e colapsa espaços. */
+function textoDeCelula(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&ccedil;/gi, "\u00e7")
+    .replace(/&atilde;/gi, "\u00e3")
+    .replace(/&otilde;/gi, "\u00f5")
+    .replace(/&aacute;/gi, "\u00e1")
+    .replace(/&eacute;/gi, "\u00e9")
+    .replace(/&iacute;/gi, "\u00ed")
+    .replace(/&oacute;/gi, "\u00f3")
+    .replace(/&uacute;/gi, "\u00fa")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Devolve as células de cada <tr> das <table> da página, já em texto limpo. */
+function linhasDaTabela(html: string): string[][] {
+  const semScript = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ");
+
+  const linhas: string[][] = [];
+  for (const tabela of semScript.match(/<table[\s\S]*?<\/table>/gi) || []) {
+    for (const tr of tabela.match(/<tr[\s\S]*?<\/tr>/gi) || []) {
+      const celulas = (tr.match(/<td[^>]*>[\s\S]*?<\/td>/gi) || [])
+        .map((td) => textoDeCelula(td.replace(/^<td[^>]*>|<\/td>$/gi, "")))
+        .filter((c) => c.length > 0);
+      // Menos de 4 células = cabeçalho ou linha de layout.
+      if (celulas.length >= 4) linhas.push(celulas);
+    }
+  }
+  return linhas;
+}
+
+/** Baixa uma página do pplen. Devolve undefined em qualquer falha. */
+async function baixarPplen(
+  pagina: "destaques" | "requerimentos-proposicao",
+  idProposicao: number
+): Promise<string | undefined> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `${PPLEN_URL}/${pagina}.html?codOrgao=180&codProposicao=${idProposicao}`,
+      {
+        signal: controller.signal,
+        headers: { Accept: "text/html,application/xhtml+xml" },
+        // Pendências mudam durante a sessão: nunca servir de cache.
+        next: { revalidate: 0 },
+      }
+    );
+    if (!res.ok) return undefined;
+    return await res.text();
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Conta destaques e requerimentos PENDENTES de uma proposição.
+ * Duas requisições HTML, sem detalhamento. Tolerante a falha: qualquer erro
+ * devolve zeros, porque sinalização é extra e nunca pode derrubar a pauta.
+ */
+export async function contarSinalizacoes(
+  idProposicao: number
+): Promise<Sinalizacoes> {
+  const [htmlDestaques, htmlRequerimentos] = await Promise.all([
+    baixarPplen("destaques", idProposicao),
+    baixarPplen("requerimentos-proposicao", idProposicao),
+  ]);
+
+  let destaques = 0;
+  let rpd = 0;
+
+  // Destaques: Número | Autoria | Descrição | Tipo Destaque | Situação
+  if (htmlDestaques) {
+    for (const c of linhasDaTabela(htmlDestaques)) {
+      const [numero, , descricao] = c;
+      const situacao = c[c.length - 1];
+      if (!SITUACAO_PENDENTE.test(situacao)) continue;
+      if (!numero.toUpperCase().includes("DTQ")) continue;
+      if (!descricao || descricao.toUpperCase().startsWith(MARCA_VOTACAO_NOMINAL)) {
+        continue;
+      }
+      destaques += 1;
+    }
+  }
+
+  // Requerimentos: Número | Autoria | Descrição | Situação | Data Situação
+  if (htmlRequerimentos) {
+    for (const c of linhasDaTabela(htmlRequerimentos)) {
+      const [numero, , descricao] = c;
+      // A última célula é a data; a situação vem imediatamente antes.
+      const situacao = c[c.length - 2];
+      if (!SITUACAO_PENDENTE.test(situacao)) continue;
+      if (numero.toUpperCase().startsWith("VN")) continue;
+      if (!descricao || descricao.toUpperCase().startsWith(MARCA_VOTACAO_NOMINAL)) {
+        continue;
+      }
+      rpd += 1;
+    }
+  }
+
+  return { destaques, rpd };
+}
+
+/**
+ * Conta as sinalizações de vários itens da pauta com paralelismo limitado
+ * (são duas páginas HTML por item; o portal da Câmara não gosta de rajada).
+ * Nunca rejeita: item que falhar volta zerado.
+ */
+export async function contarSinalizacoesEmLote(
+  ids: number[],
+  paralelismo = 6
+): Promise<Record<string, Sinalizacoes>> {
+  const mapa: Record<string, Sinalizacoes> = {};
+  const fila = Array.from(new Set(ids));
+  if (fila.length === 0) return mapa;
+
+  async function trabalhador(): Promise<void> {
+    for (;;) {
+      const id = fila.shift();
+      if (id === undefined) return;
+      mapa[String(id)] = await contarSinalizacoes(id);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(paralelismo, fila.length) }, () =>
+      trabalhador()
+    )
+  );
+
+  return mapa;
 }
 
 export async function buscarDestaques(id: number): Promise<Destaque[]> {
