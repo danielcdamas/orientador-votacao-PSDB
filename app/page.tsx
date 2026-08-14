@@ -14,6 +14,7 @@ import type {
   ApiResponse,
   Destaque,
   Fase,
+  MapaSinalizacoes,
   OrientacaoDestaque,
   Posicao,
   Proposicao,
@@ -80,6 +81,13 @@ const hojeISOStr = (() => {
   const [mensagemGerada, setMensagemGerada] = useState<string>("");
   const [editouMensagem, setEditouMensagem] = useState(false);
 
+  // Sinalizações da pauta: bolinha vermelha = destaque (DTQ), amarela =
+  // requerimento procedimental (RPD), contados na data da sessão e na véspera.
+  // Roda em segundo plano depois que a pauta chega — nunca bloqueia a tela.
+  const [sinalizacoes, setSinalizacoes] = useState<MapaSinalizacoes>({});
+  const [carregandoSinalizacoes, setCarregandoSinalizacoes] = useState(false);
+  const [sinalizacoesEm, setSinalizacoesEm] = useState<string | null>(null);
+
 const carregarPauta = useCallback(
     async (data?: string) => {
       const dataUsada = data ?? dataSelecionada;
@@ -89,6 +97,9 @@ const carregarPauta = useCallback(
       setCarregandoPauta(true);
       setErroPauta(null);
       setAvisoPauta(null);
+      // Pauta nova = sinalizações da pauta antiga não valem mais.
+      setSinalizacoes({});
+      setSinalizacoesEm(null);
       try {
         const res = await fetch(
           `/api/proposicoes/pauta?data=${dataUsada}`,
@@ -129,6 +140,38 @@ const aoTrocarData = useCallback(
     },
     [carregarPauta]
   );
+
+  // Busca as contagens de DTQ/RPD PENDENTES de todos os itens da pauta.
+  // Extra e tolerante a falha: se der erro, a pauta continua utilizável e as
+  // bolinhas simplesmente não acendem (em plenário sem internet, assustar o
+  // plenarista com erro seria pior do que ficar sem o aviso).
+  const carregarSinalizacoes = useCallback(async () => {
+    const ids = pauta.map((p) => p.id).filter((id) => Number.isFinite(id));
+    if (ids.length === 0) return;
+
+    setCarregandoSinalizacoes(true);
+    try {
+      const res = await fetch("/api/proposicoes/sinalizacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+        cache: "no-store",
+      });
+      const json: ApiResponse<MapaSinalizacoes> = await res.json();
+      if (!json.ok) return;
+      setSinalizacoes(json.data || {});
+      const agora = new Date();
+      setSinalizacoesEm(
+        `${String(agora.getHours()).padStart(2, "0")}:${String(
+          agora.getMinutes()
+        ).padStart(2, "0")}`
+      );
+    } catch {
+      // Silencioso de propósito.
+    } finally {
+      setCarregandoSinalizacoes(false);
+    }
+  }, [pauta]);
   const carregarDestaques = useCallback(async (idProposicao: number) => {
     setCarregandoDestaques(true);
     setAvisoDestaques(null);
@@ -164,6 +207,28 @@ const aoTrocarData = useCallback(
   useEffect(() => {
     carregarPauta();
   }, [carregarPauta]);
+
+  // Dispara a checagem assim que a pauta chega, em segundo plano.
+  useEffect(() => {
+    if (pauta.length === 0) return;
+    carregarSinalizacoes();
+  }, [pauta, carregarSinalizacoes]);
+
+  // Recheca quando o app volta ao primeiro plano — mesmo gatilho usado pelo
+  // aviso de nova versão (v1.6.2). É o momento em que o plenarista volta ao
+  // celular e precisa ver o que apareceu enquanto a tela estava apagada.
+  useEffect(() => {
+    function aoVoltarAoPrimeiroPlano() {
+      if (document.visibilityState !== "visible") return;
+      carregarSinalizacoes();
+    }
+    document.addEventListener("visibilitychange", aoVoltarAoPrimeiroPlano);
+    window.addEventListener("focus", aoVoltarAoPrimeiroPlano);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltarAoPrimeiroPlano);
+      window.removeEventListener("focus", aoVoltarAoPrimeiroPlano);
+    };
+  }, [carregarSinalizacoes]);
 
   const ehDestaque = fase === "DESTAQUE_TEXTO" || fase === "DESTAQUE_EMENDA";
   // Emendas com parecer pela rejeição: como nos destaques, o SIM/NÃO é escolha
@@ -602,6 +667,10 @@ body: JSON.stringify({
                 proposicoes={pauta}
                 selectedId={selecionada?.id || null}
                 onChange={handleSelecionarProposicao}
+                sinalizacoes={sinalizacoes}
+                onAtualizarSinalizacoes={carregarSinalizacoes}
+                sinalizacoesEm={sinalizacoesEm}
+                carregandoSinalizacoes={carregandoSinalizacoes}
               />
             </>
           )}
