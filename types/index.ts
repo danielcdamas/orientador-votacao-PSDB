@@ -97,6 +97,24 @@ export interface Parecer {
   ementa?: string;
 }
 
+/**
+ * Sinalizações de uma proposição na janela da sessão (bolinhas da lista da pauta).
+ * Só contagem — não traz o conteúdo dos documentos.
+ */
+export interface Sinalizacoes {
+  /** Destaques (DTQ) apresentados na data da sessão ou na véspera. */
+  destaques: number;
+  /**
+   * Requerimentos procedimentais (RPD) apresentados na data da sessão ou na
+   * véspera, EXCLUÍDOS os registros de "Votação Nominal do ...", que são
+   * votações já realizadas e não requerimentos pendentes.
+   */
+  rpd: number;
+}
+
+/** Mapa id da proposição (como texto, pois vem de JSON) -> sinalizações. */
+export type MapaSinalizacoes = Record<string, Sinalizacoes>;
+
 /** Resposta padrão da API interna */
 export interface ApiResponse<T> {
   ok: boolean;
