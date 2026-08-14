@@ -10,4 +10,4 @@
 // Se as três fontes divergirem, o aviso de atualização dispara à toa.
 // =========================================================
 
-export const APP_VERSAO = process.env.NEXT_PUBLIC_APP_VERSION || "1.6.2";
+export const APP_VERSAO = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.0";
